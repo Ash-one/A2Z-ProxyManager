@@ -92,5 +92,5 @@ npm run build                                                 # tsc + vite 构�
 
 ## 对后续阶段的影响
 
-- **T2（OAuth JWT 入池）**：`ZaiKeyEntry` 扩展 `mode: jwt|apiKey`；OAuth CLI 流程、billing 轮询、JWT↔Key 回退都挂在本池，Accounts 页 UI 届时接入。
+- **T2（OAuth JWT 入池）— 已实现**：`ZaiKeyEntry` 扩展 `mode: jwt|apiKey` 与账号配对字段；OAuth CLI 流程、开钥链、手动导入、按需额度查询挂在本池（决策记录：`implementation-t2.md`）；`mode=jwt` 条目在 Plan 通道就绪前不参与转发调度；billing 首版为手动按需查询（后台错峰轮询留评估）；Accounts 页接入留后续。
 - **T3（Plan 通道仿真）**：verify_param 注入、指纹/领取配置的命名空间拆分决策仍按提案 §6.5 在实现 PR 落定。

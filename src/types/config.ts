@@ -112,13 +112,22 @@ export interface StickySessionConfig {
 
 export type ZaiDispatchMode = 'off' | 'exclusive' | 'pooled' | 'fallback';
 
-export type ZaiProvider = 'zai' | 'bigmodel';
+export type ZaiProvider = 'zai' | 'bigmodel' | 'zcode_plan';
+
+// [zcode T2] 凭证模式：apiKey=直连转发（T1 起）；jwt=Coding Plan 订阅 JWT（Plan 通道，T3 前不参与转发）
+export type ZaiKeyMode = 'api_key' | 'jwt';
 
 export interface ZaiKeyEntry {
     key: string;
     provider: ZaiProvider;
     enabled: boolean;
     label?: string;
+    mode?: ZaiKeyMode;
+    /** 账号配对身份（OAuth 登录产物；JWT 与同账号 API Key 并存的锚点） */
+    account_id?: string;
+    user_email?: string;
+    /** api.z.ai 管理 JWT（billing/订阅查询专用，绝不用于消息转发） */
+    business_jwt?: string;
 }
 
 export interface ZaiMcpConfig {
@@ -152,11 +161,28 @@ export interface ZaiKeyStatusView {
     index: number;
     masked_key: string;
     provider: ZaiProvider;
+    mode?: ZaiKeyMode;
+    account_id?: string;
     enabled: boolean;
     label: string;
     status: ZaiKeyRuntimeStatus;
     status_remaining_secs: number | null;
     last_error: string | null;
+}
+
+// [zcode T2] OAuth CLI 登录流程态（后端无会话状态，前端持有并回传轮询）
+export interface ZcodeOauthFlow {
+    flow_id: string;
+    authorize_url: string;
+    poll_token: string;
+    expires_at_ms: number;
+    poll_interval_secs: number;
+}
+
+export interface ZcodePollCommandResult {
+    status: 'pending' | 'expired' | 'ready';
+    entries: ZaiKeyEntry[];
+    warning?: string | null;
 }
 
 export interface ScheduledWarmupConfig {

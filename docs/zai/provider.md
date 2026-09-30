@@ -12,17 +12,18 @@ We added an optional “z.ai provider” that:
 - Forwards `/v1/messages` and `/v1/messages/count_tokens` to a z.ai Anthropic-compatible base URL.
 - Streams responses back without parsing SSE.
 - **[zcode T1]** Pools multiple API keys with round-robin scheduling, per-key runtime state aligned to `UpstreamClassification`, and bounded account-level failover inside a single request.
+- **[zcode T2]** OAuth password-free login (ZCode CLI flow) provisions the subscription API key automatically and adds it to the pool; the Coding-Plan JWT is stored alongside (paired by `account_id`) for quota queries and the future T3 Plan channel, and is excluded from message forwarding until then.
 
 ## Configuration
 Schema: `src-tauri/src/proxy/config.rs`
 - `ZaiConfig` in `src-tauri/src/proxy/config.rs`
 - `ZaiDispatchMode` in `src-tauri/src/proxy/config.rs`
-- `ZaiProvider` / `ZaiKeyEntry` in `src-tauri/src/proxy/config.rs` ([zcode T1])
+- `ZaiProvider` / `ZaiKeyEntry` / `ZaiKeyMode` in `src-tauri/src/proxy/config.rs` ([zcode T1/T2])
 
 Key fields:
 - `proxy.zai.enabled`
-- `proxy.zai.base_url` (default `https://api.z.ai/api/anthropic`; a custom gateway overrides per-provider canonical URLs, canonical values resolve per key)
-- `proxy.zai.keys` — [zcode T1] API key pool entries `{ key, provider: zai|bigmodel, enabled, label? }`; canonical upstreams: `zai` → `https://api.z.ai/api/anthropic`, `bigmodel` → `https://open.bigmodel.cn/api/anthropic`
+- `proxy.zai.base_url` (default `https://api.z.ai/api/anthropic`; a custom gateway overrides per-provider canonical URLs, canonical values resolve per key; [zcode T2] the `zcode_plan` provider is a separate subscription domain and ignores the global override)
+- `proxy.zai.keys` — [zcode T1] API key pool entries `{ key, provider: zai|bigmodel, enabled, label? }`; canonical upstreams: `zai` → `https://api.z.ai/api/anthropic`, `bigmodel` → `https://open.bigmodel.cn/api/anthropic`; [zcode T2] entries additionally carry `mode: api_key|jwt`, `account_id`, `user_email`, `business_jwt` (management token for billing queries, never used for message forwarding); `provider: zcode_plan` → `https://zcode.z.ai`
 - `proxy.zai.api_key` — legacy single-key field, kept for migration compat only (`resolved_keys()` migrates it into a single pool entry; ignored when `keys` is non-empty)
 - `proxy.zai.dispatch_mode`:
   - `off`
@@ -45,7 +46,8 @@ Provider implementation: [`src-tauri/src/proxy/providers/zai_anthropic.rs`](../.
 - Injects z.ai auth (`Authorization` / `x-api-key`) and forwards the request body as-is.
 - Uses the global upstream proxy config when configured.
 - **[zcode T1]** Key pool & state machine: [`src-tauri/src/proxy/providers/zai_pool.rs`](../../src-tauri/src/proxy/providers/zai_pool.rs) — round-robin over available keys; account-level failures (429/529 → Retry-After rate limit, 5xx → short cooldown, 401/403 → invalid, 402 → exhausted) are marked and the request fails over to the next available key (bounded, ≤4 attempts) before any bytes reach the client. Request-level errors (404 model-not-found, 400 signature errors) pass through untouched. See `docs/zcode/implementation.md` for the owning decision.
-- MCP / Vision / model-list helpers follow the first available pool key (`primary_api_key()`); they target z.ai-domain endpoints only and do not rotate keys.
+- **[zcode T2]** OAuth & subscription chain: [`src-tauri/src/proxy/providers/zcode_oauth.rs`](../../src-tauri/src/proxy/providers/zcode_oauth.rs) — CLI login (`zcode.z.ai/api/v1/oauth/cli/init` + `poll/{flow_id}`, `3004` = session expired), business JWT derivation (`/api/auth/z/login`), API-key provisioning chain (reuses/creates `zcode-api-key`), and on-demand subscription queries (`/api/biz/subscription/list`). Tauri commands `zcode_oauth_start`/`zcode_oauth_poll`/`zcode_query_quota` with Web-route parity (`/api/zcode/*`). See `docs/zcode/implementation-t2.md` for the owning decision.
+- MCP / Vision / model-list helpers follow the first available **API-key** pool entry (`primary_api_key()` skips `mode=jwt` entries); they target z.ai-domain endpoints only and do not rotate keys.
 
 ## Validation
 1) Enable z.ai in the UI (`src/pages/ApiProxy.tsx`) and set `dispatch_mode=exclusive`.

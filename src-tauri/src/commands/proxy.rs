@@ -760,6 +760,89 @@ pub async fn get_zai_key_pool_status(
     Ok(crate::proxy::providers::zai_pool::ZaiKeyPool::global().status_snapshot(&zai))
 }
 
+// ===== [zcode T2] OAuth CLI 登录 + 订阅额度查询（净室实现，协议事实见 docs/zcode/implementation-t2.md） =====
+
+/// 发起 OAuth 登录流程：返回 authorize_url 与客户端流程态（后端无会话状态，前端持有并回传轮询）。
+#[tauri::command]
+pub async fn zcode_oauth_start(
+    upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
+    request_timeout: u64,
+) -> Result<crate::proxy::providers::zcode_oauth::ZcodeOauthFlow, String> {
+    crate::proxy::providers::zcode_oauth::oauth_start(&upstream_proxy, request_timeout).await
+}
+
+/// 轮询结果（ready 时已完成业务 JWT + 开钥链，返回待入池条目）。
+#[derive(Debug, Clone, Serialize)]
+pub struct ZcodePollCommandResult {
+    /// "pending" | "expired" | "ready"
+    pub status: String,
+    /// status=ready 时：登录产物条目（JWT 条目 +（开钥成功时）同账号 API Key 条目）。
+    #[serde(default)]
+    pub entries: Vec<crate::proxy::config::ZaiKeyEntry>,
+    /// status=ready 且开钥链降级时的说明。
+    #[serde(default)]
+    pub warning: Option<String>,
+}
+
+/// 轮询单次登录流程；ready 时完成业务 JWT 派生与开钥链（失败降级不阻塞登录）。
+#[tauri::command]
+pub async fn zcode_oauth_poll(
+    flow: crate::proxy::providers::zcode_oauth::ZcodeOauthFlow,
+    upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
+    request_timeout: u64,
+) -> Result<ZcodePollCommandResult, String> {
+    let outcome = crate::proxy::providers::zcode_oauth::oauth_poll_once(
+        &flow,
+        &upstream_proxy,
+        request_timeout,
+    )
+    .await?;
+    match outcome {
+        crate::proxy::providers::zcode_oauth::ZcodePollOutcome::Pending => {
+            Ok(ZcodePollCommandResult {
+                status: "pending".to_string(),
+                entries: Vec::new(),
+                warning: None,
+            })
+        }
+        crate::proxy::providers::zcode_oauth::ZcodePollOutcome::Expired => {
+            Ok(ZcodePollCommandResult {
+                status: "expired".to_string(),
+                entries: Vec::new(),
+                warning: None,
+            })
+        }
+        crate::proxy::providers::zcode_oauth::ZcodePollOutcome::Ready { .. } => {
+            let result = crate::proxy::providers::zcode_oauth::complete_login(
+                outcome,
+                &upstream_proxy,
+                request_timeout,
+            )
+            .await?;
+            Ok(ZcodePollCommandResult {
+                status: "ready".to_string(),
+                entries: result.entries,
+                warning: result.warning,
+            })
+        }
+    }
+}
+
+/// 手动按需查询订阅/额度（Bearer 业务 JWT；data 原样透传，结构未公开文档化由前端容错展示）。
+#[tauri::command]
+pub async fn zcode_query_quota(
+    business_jwt: String,
+    upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
+    request_timeout: u64,
+) -> Result<serde_json::Value, String> {
+    crate::proxy::providers::zcode_oauth::query_subscription(
+        &business_jwt,
+        &upstream_proxy,
+        request_timeout,
+    )
+    .await
+}
+
 /// 获取当前调度配置
 #[tauri::command]
 pub async fn get_proxy_scheduling_config(

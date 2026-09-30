@@ -861,6 +861,9 @@ impl AxumServer {
             )
             .route("/zai/models/fetch", post(admin_fetch_zai_models))
             .route("/zai/keys/status", get(admin_get_zai_key_status))
+            .route("/zcode/oauth/start", post(admin_zcode_oauth_start))
+            .route("/zcode/oauth/poll", post(admin_zcode_oauth_poll))
+            .route("/zcode/quota", post(admin_zcode_query_quota))
             .route(
                 "/proxy/monitor/toggle",
                 post(admin_set_proxy_monitor_enabled),
@@ -2225,6 +2228,88 @@ async fn admin_fetch_zai_models(
 async fn admin_get_zai_key_status(State(state): State<AppState>) -> impl IntoResponse {
     let zai = state.zai.read().await.clone();
     Json(crate::proxy::providers::zai_pool::ZaiKeyPool::global().status_snapshot(&zai))
+}
+
+// ===== [zcode T2] OAuth CLI 登录 + 订阅额度查询（Web/无头模式与 Tauri 命令等价） =====
+
+async fn admin_zcode_oauth_start(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let upstream_proxy = state.upstream_proxy.read().await.clone();
+    let request_timeout = state.request_timeout;
+    match crate::proxy::providers::zcode_oauth::oauth_start(&upstream_proxy, request_timeout).await
+    {
+        Ok(flow) => Ok(Json(
+            serde_json::to_value(flow).unwrap_or(serde_json::Value::Null),
+        )),
+        Err(e) => Err((StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: e }))),
+    }
+}
+
+async fn admin_zcode_oauth_poll(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let flow: crate::proxy::providers::zcode_oauth::ZcodeOauthFlow = serde_json::from_value(
+        payload
+            .get("flow")
+            .cloned()
+            .unwrap_or(serde_json::Value::Null),
+    )
+    .map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: format!("Invalid oauth flow payload: {}", e),
+            }),
+        )
+    })?;
+    let upstream_proxy = state.upstream_proxy.read().await.clone();
+    let request_timeout = state.request_timeout;
+    use crate::proxy::providers::zcode_oauth as oauth;
+    let outcome = oauth::oauth_poll_once(&flow, &upstream_proxy, request_timeout)
+        .await
+        .map_err(|e| (StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: e })))?;
+    let result = match outcome {
+        oauth::ZcodePollOutcome::Pending => (String::from("pending"), Vec::new(), None),
+        oauth::ZcodePollOutcome::Expired => (String::from("expired"), Vec::new(), None),
+        oauth::ZcodePollOutcome::Ready { .. } => {
+            let login = oauth::complete_login(outcome, &upstream_proxy, request_timeout)
+                .await
+                .map_err(|e| (StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: e })))?;
+            (String::from("ready"), login.entries, login.warning)
+        }
+    };
+    Ok(Json(serde_json::json!({
+        "status": result.0,
+        "entries": result.1,
+        "warning": result.2,
+    })))
+}
+
+async fn admin_zcode_query_quota(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    // Web 模式 body 直传命令参数（Tauri 侧 camelCase / 直连侧 snake_case 兼容）
+    let business_jwt = payload
+        .get("business_jwt")
+        .or_else(|| payload.get("businessJwt"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let upstream_proxy = state.upstream_proxy.read().await.clone();
+    let request_timeout = state.request_timeout;
+    match crate::proxy::providers::zcode_oauth::query_subscription(
+        &business_jwt,
+        &upstream_proxy,
+        request_timeout,
+    )
+    .await
+    {
+        Ok(data) => Ok(Json(data)),
+        Err(e) => Err((StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: e }))),
+    }
 }
 
 async fn admin_set_proxy_monitor_enabled(

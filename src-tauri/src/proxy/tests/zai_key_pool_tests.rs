@@ -1,7 +1,10 @@
 //! zcode T1：API Key 池 — 配置迁移（A2）与环境变量解析（A6 headless parity）纯逻辑测试。
+//! zcode T2：凭证模式判别与 Plan 通道 base URL 规则测试。
 //! 池状态机/选择逻辑的聚焦测试见 `providers/zai_pool.rs` 内嵌 `#[cfg(test)]`。
 
-use crate::proxy::config::{parse_zai_keys_env, ZaiConfig, ZaiProvider};
+use crate::proxy::config::{
+    detect_imported_credential, parse_zai_keys_env, ZaiConfig, ZaiKeyMode, ZaiProvider,
+};
 
 #[test]
 fn legacy_single_api_key_migrates_to_pool() {
@@ -34,11 +37,15 @@ fn keys_list_takes_precedence_over_legacy_api_key() {
     // keys 非空时遗留 api_key 被忽略（迁移只进不退，行为不回退）
     let cfg = ZaiConfig {
         api_key: "sk-legacy".to_string(),
-        keys: vec![crate::proxy::ZaiKeyEntry {
+        keys: vec![crate::proxy::config::ZaiKeyEntry {
             key: "sk-new".to_string(),
             provider: ZaiProvider::BigModel,
             enabled: true,
             label: String::new(),
+            mode: ZaiKeyMode::ApiKey,
+            account_id: String::new(),
+            user_email: String::new(),
+            business_jwt: String::new(),
         }],
         ..ZaiConfig::default()
     };
@@ -73,6 +80,41 @@ fn effective_base_url_rules() {
         ),
         "https://my-gateway.example.com/anthropic"
     );
+    // zcode T2：Plan 通道为独立订阅域，不受全局覆盖
+    assert_eq!(
+        ZaiConfig::effective_base_url(ZaiProvider::ZcodePlan, "https://my-gateway.example.com/x"),
+        "https://zcode.z.ai"
+    );
+}
+
+// ===== zcode T2：凭证模式判别 =====
+
+#[test]
+fn detect_imported_credential_rules() {
+    // 3 段点分 → 订阅 JWT
+    assert_eq!(
+        detect_imported_credential("eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.sig"),
+        Some((
+            ZaiKeyMode::Jwt,
+            "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.sig".to_string()
+        ))
+    );
+    // 单点两段 → id.secret API Key
+    assert_eq!(
+        detect_imported_credential("id123456.secretkeyvalue"),
+        Some((ZaiKeyMode::ApiKey, "id123456.secretkeyvalue".to_string()))
+    );
+    // 前后空白被修剪
+    assert_eq!(
+        detect_imported_credential("  a.b.c  "),
+        Some((ZaiKeyMode::Jwt, "a.b.c".to_string()))
+    );
+    // 非法：空段 / 空白 / 无点 / 三段以上
+    assert_eq!(detect_imported_credential(""), None);
+    assert_eq!(detect_imported_credential("a..c"), None);
+    assert_eq!(detect_imported_credential("a b.c.d"), None);
+    assert_eq!(detect_imported_credential("nodot"), None);
+    assert_eq!(detect_imported_credential("a.b.c.d"), None);
 }
 
 #[test]

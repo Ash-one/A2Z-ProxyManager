@@ -447,6 +447,8 @@ pub enum ZaiProvider {
     Zai,
     /// 智谱 BigModel 开放平台（open.bigmodel.cn）
     BigModel,
+    /// zcode T2：ZCode Plan 通道根（zcode.z.ai，订阅通道；消息转发待 T3 验证码机制）
+    ZcodePlan,
 }
 
 impl Default for ZaiProvider {
@@ -461,7 +463,13 @@ impl ZaiProvider {
         match self {
             ZaiProvider::Zai => "https://api.z.ai/api/anthropic",
             ZaiProvider::BigModel => "https://open.bigmodel.cn/api/anthropic",
+            ZaiProvider::ZcodePlan => "https://zcode.z.ai",
         }
+    }
+
+    /// 是否受全局自定义网关 base_url 覆盖（Plan 通道为独立订阅域，不受覆盖）。
+    pub fn honors_global_override(&self) -> bool {
+        !matches!(self, ZaiProvider::ZcodePlan)
     }
 
     /// 迁移用：从遗留全局 base_url 推断 provider（无法识别时视为 z.ai / 自定义网关）。
@@ -475,9 +483,20 @@ impl ZaiProvider {
 }
 
 /// zcode T1：Key 池中的单个 API Key 条目（T2 将扩展 mode: jwt|apiKey）。
+/// zcode T2：条目凭证模式。`ApiKey` = 直连计费/订阅转发（T1 起可用）；
+/// `Jwt` = Coding Plan 订阅 JWT（`zcode.z.ai` 通道，需 T3 验证码机制方可转发，先入池存储）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZaiKeyMode {
+    #[default]
+    ApiKey,
+    Jwt,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZaiKeyEntry {
     /// 上游 API Key 原文（仅本地存储，永不注入上游日志或回显）。
+    /// `mode=jwt` 时为 Coding Plan 订阅 JWT（3 段点分）。
     pub key: String,
     /// 该 Key 所属的上游家族（决定规范 base URL）。
     #[serde(default)]
@@ -488,6 +507,18 @@ pub struct ZaiKeyEntry {
     /// 可选备注（仅本地展示）。
     #[serde(default)]
     pub label: String,
+    /// zcode T2：凭证模式（缺省 apiKey，T1 旧配置反序列化兼容）。
+    #[serde(default)]
+    pub mode: ZaiKeyMode,
+    /// zcode T2：账号配对身份（zcode user id/email），JWT 与同账号 API Key 并存语义的锚点。
+    #[serde(default)]
+    pub account_id: String,
+    /// zcode T2：账号邮箱（展示用）。
+    #[serde(default)]
+    pub user_email: String,
+    /// zcode T2：api.z.ai 管理 JWT（业务令牌），billing/订阅查询专用，绝不用于消息转发。
+    #[serde(default)]
+    pub business_jwt: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -546,21 +577,30 @@ impl ZaiConfig {
             provider: ZaiProvider::infer_from_base_url(&self.base_url),
             enabled: true,
             label: String::new(),
+            mode: ZaiKeyMode::ApiKey,
+            account_id: String::new(),
+            user_email: String::new(),
+            business_jwt: String::new(),
         }]
     }
 
-    /// 首个启用且非空的 Key：供 MCP / Vision / 模型拉取等辅助通道使用
-    /// （辅助通道为 z.ai 域名专属端点，不参与轮询，仅跟随池内首个可用 Key）。
+    /// 首个启用且非空的 API Key 条目：供 MCP / Vision / 模型拉取等辅助通道使用
+    /// （辅助通道为 z.ai 域名专属端点，不参与轮询，仅跟随池内首个可用 Key；
+    /// zcode T2：Plan 通道 JWT 条目不能用于这些端点，恒被跳过）。
     pub fn primary_api_key(&self) -> Option<ZaiKeyEntry> {
         self.resolved_keys()
             .into_iter()
-            .find(|e| e.enabled && !e.key.trim().is_empty())
+            .find(|e| e.enabled && !e.key.trim().is_empty() && e.mode == ZaiKeyMode::ApiKey)
     }
 
     /// 请求实际使用的 base URL：
     /// - 全局 `base_url` 缺省或为任一规范地址 → 使用条目 provider 的规范地址；
     /// - 全局 `base_url` 为自定义网关 → 覆盖所有条目（高级逃生通道，行为与 T1 前一致）。
     pub fn effective_base_url(entry_provider: ZaiProvider, global_base_url: &str) -> String {
+        // zcode T2：Plan 通道为独立订阅域，固定使用规范地址，不受全局覆盖。
+        if !entry_provider.honors_global_override() {
+            return entry_provider.canonical_base_url().to_string();
+        }
         let bu = global_base_url.trim().trim_end_matches('/');
         if bu.is_empty()
             || bu == ZaiProvider::Zai.canonical_base_url()
@@ -571,6 +611,23 @@ impl ZaiConfig {
             bu.to_string()
         }
     }
+}
+
+/// zcode T2：手动导入判别（纯函数）。3 段点分 → 订阅 JWT；单点两段且两段非空 →
+/// `id.secret` 形态 API Key；其余 → None（提示格式无法识别）。
+pub fn detect_imported_credential(raw: &str) -> Option<(ZaiKeyMode, String)> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() || trimmed.contains(char::is_whitespace) {
+        return None;
+    }
+    let segments: Vec<&str> = trimmed.split('.').collect();
+    if segments.len() == 3 && segments.iter().all(|s| !s.is_empty()) {
+        return Some((ZaiKeyMode::Jwt, trimmed.to_string()));
+    }
+    if segments.len() == 2 && segments.iter().all(|s| !s.is_empty()) {
+        return Some((ZaiKeyMode::ApiKey, trimmed.to_string()));
+    }
+    None
 }
 
 /// zcode T1 headless parity：解析 `ABV_ZAI_KEYS`/`ZAI_KEYS` 环境变量。
@@ -595,6 +652,10 @@ pub fn parse_zai_keys_env(raw: &str) -> Vec<ZaiKeyEntry> {
                 provider,
                 enabled: true,
                 label: String::new(),
+                mode: ZaiKeyMode::ApiKey,
+                account_id: String::new(),
+                user_email: String::new(),
+                business_jwt: String::new(),
             }
         })
         .filter(|e| !e.key.is_empty())

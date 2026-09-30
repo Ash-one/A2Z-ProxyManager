@@ -16,7 +16,7 @@ use std::time::{Duration, SystemTime};
 
 use serde::Serialize;
 
-use crate::proxy::config::{ZaiConfig, ZaiKeyEntry, ZaiProvider};
+use crate::proxy::config::{ZaiConfig, ZaiKeyEntry, ZaiKeyMode, ZaiProvider};
 use crate::proxy::pipeline::policy::UpstreamClassification;
 
 /// 429/529 且上游未提供 Retry-After 时的默认限速窗口（有界，防止热循环打 Key）
@@ -72,6 +72,10 @@ pub struct ZaiKeyStatusView {
     /// 掩码展示（首 6 + 尾 4），绝不回传 Key 原文
     pub masked_key: String,
     pub provider: ZaiProvider,
+    /// zcode T2：凭证模式（apiKey=可转发；jwt=Plan 通道待 T3）
+    pub mode: ZaiKeyMode,
+    /// zcode T2：账号配对身份（空 = 手动导入的独立 Key）
+    pub account_id: String,
     pub enabled: bool,
     pub label: String,
     pub status: ZaiKeyStatus,
@@ -135,6 +139,8 @@ impl ZaiKeyPool {
             e.key.hash(&mut hasher);
             e.provider.hash(&mut hasher);
             e.enabled.hash(&mut hasher);
+            e.mode.hash(&mut hasher);
+            e.account_id.hash(&mut hasher);
         }
         hasher.finish()
     }
@@ -184,7 +190,9 @@ impl ZaiKeyPool {
         guard.fingerprint = fp;
     }
 
-    /// 当前可参与调度的条目下标（enabled + 非空 + 状态机放行）
+    /// 当前可参与调度的条目下标（enabled + 非空 + 状态机放行）。
+    /// zcode T2：`mode=Jwt` 条目挂 Plan 通道（`zcode.z.ai`，需 T3 验证码机制），
+    /// 在通道就绪前不参与消息转发调度，仅作为凭证存储与 billing 查询锚点。
     fn available_indices(entries: &[PoolEntry], now: SystemTime) -> Vec<usize> {
         entries
             .iter()
@@ -192,6 +200,7 @@ impl ZaiKeyPool {
             .filter(|(_, e)| {
                 e.cfg.enabled
                     && !e.cfg.key.trim().is_empty()
+                    && e.cfg.mode != ZaiKeyMode::Jwt
                     && e.status.is_available(e.status_until, now)
             })
             .map(|(i, _)| i)
@@ -341,6 +350,8 @@ impl ZaiKeyPool {
                     index,
                     masked_key: mask_key(&e.cfg.key),
                     provider: e.cfg.provider,
+                    mode: e.cfg.mode,
+                    account_id: e.cfg.account_id.clone(),
                     enabled: e.cfg.enabled,
                     label: e.cfg.label.clone(),
                     status: display,
@@ -362,6 +373,24 @@ mod tests {
             provider,
             enabled,
             label: String::new(),
+            mode: crate::proxy::config::ZaiKeyMode::ApiKey,
+            account_id: String::new(),
+            user_email: String::new(),
+            business_jwt: String::new(),
+        }
+    }
+
+    /// zcode T2：Plan 通道 JWT 条目（不参与消息转发调度）
+    fn jwt_entry(key: &str, enabled: bool) -> ZaiKeyEntry {
+        ZaiKeyEntry {
+            key: key.to_string(),
+            provider: ZaiProvider::ZcodePlan,
+            enabled,
+            label: "Plan JWT".to_string(),
+            mode: crate::proxy::config::ZaiKeyMode::Jwt,
+            account_id: "acc-1".to_string(),
+            user_email: "user@x.io".to_string(),
+            business_jwt: "biz.jwt".to_string(),
         }
     }
 
@@ -536,5 +565,42 @@ mod tests {
     fn masked_key_never_reveals_short_keys() {
         assert_eq!(mask_key("short"), "***");
         assert_eq!(mask_key("sk-abcdefghijkl"), "sk-abc...ijkl");
+    }
+
+    // ===== zcode T2：Plan 通道 JWT 条目不参与消息转发调度 =====
+
+    #[test]
+    fn jwt_mode_entries_are_excluded_from_scheduling() {
+        // JWT（Plan 通道，T3 前不可转发）+ 同账号 API Key：仅 API Key 计入槽位
+        let cfg = config(vec![
+            jwt_entry("jwt.def.sig", true),
+            entry("key-a", ZaiProvider::Zai, true),
+        ]);
+        let pool = ZaiKeyPool::new();
+        assert_eq!(pool.available_count(&cfg), 1);
+
+        // 禁用 API Key 后仅剩 JWT → 无可用槽位（而非把 JWT 当作可用凭证）
+        let cfg_jwt_only = config(vec![jwt_entry("jwt.def.sig", true)]);
+        assert_eq!(pool.available_count(&cfg_jwt_only), 0);
+
+        // 状态快照仍完整展示 JWT 条目（含 mode / account_id）
+        let snap = pool.status_snapshot(&cfg);
+        assert_eq!(snap.len(), 2);
+        assert_eq!(snap[0].mode, crate::proxy::config::ZaiKeyMode::Jwt);
+        assert_eq!(snap[0].account_id, "acc-1");
+        assert_eq!(snap[1].mode, crate::proxy::config::ZaiKeyMode::ApiKey);
+    }
+
+    #[test]
+    fn mode_change_resynchronizes_entry_identity() {
+        // 同 key 但 mode 变化 → 指纹变化触发重同步（条目身份 = key+provider+enabled+mode+account）
+        let pool = ZaiKeyPool::new();
+        let cfg = config(vec![entry("shared", ZaiProvider::Zai, true)]);
+        assert_eq!(pool.available_count(&cfg), 1);
+        let cfg_jwt = config(vec![ZaiKeyEntry {
+            mode: crate::proxy::config::ZaiKeyMode::Jwt,
+            ..entry("shared", ZaiProvider::Zai, true)
+        }]);
+        assert_eq!(pool.available_count(&cfg_jwt), 0);
     }
 }

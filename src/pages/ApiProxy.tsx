@@ -2219,10 +2219,12 @@ print(response.choices[0].message.content)`;
                                         </div>
                                     </div>
 
-                                    {/* [zcode T1] API Key 池（多 Key 轮询/故障转移） */}
+                                    {/* [zcode T1/T2] API Key 池（多 Key 轮询/故障转移 + OAuth 登录入池） */}
                                     <ZaiKeyPoolEditor
                                         zai={appConfig.proxy.zai}
                                         onChange={(updates) => updateZaiGeneralConfig(updates)}
+                                        upstreamProxy={appConfig.proxy.upstream_proxy}
+                                        requestTimeout={appConfig.proxy.request_timeout}
                                     />
 
                                     {/* Model Mapping Section */}
