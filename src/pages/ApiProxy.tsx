@@ -167,11 +167,6 @@ export default function ApiProxy() {
     const [copied, setCopied] = useState<string | null>(null);
     const [selectedProtocol, setSelectedProtocol] = useState<'openai' | 'anthropic' | 'gemini'>('openai');
     const [selectedModelId, setSelectedModelId] = useState('gemini-3-flash');
-    const [zaiAvailableModels, setZaiAvailableModels] = useState<string[]>([]);
-    const [zaiModelsLoading, setZaiModelsLoading] = useState(false);
-    const [, setZaiModelsError] = useState<string | null>(null);
-    const [zaiNewMappingFrom, setZaiNewMappingFrom] = useState('');
-    const [zaiNewMappingTo, setZaiNewMappingTo] = useState('');
     const [customMappingValue, setCustomMappingValue] = useState(''); // 自定义映射表单的选中值
     const [editingKey, setEditingKey] = useState<string | null>(null);
     const [editingValue, setEditingValue] = useState<string>('');
@@ -210,16 +205,6 @@ export default function ApiProxy() {
     const [cfMode, setCfMode] = useState<'quick' | 'auth'>('quick');
     const [cfToken, setCfToken] = useState('');
     const [cfUseHttp2, setCfUseHttp2] = useState(true); // 默认启用HTTP/2，更稳定
-
-    const zaiModelOptions = useMemo(() => {
-        const unique = new Set(zaiAvailableModels);
-        return Array.from(unique).sort();
-    }, [zaiAvailableModels]);
-
-    const zaiModelMapping = useMemo(() => {
-        return appConfig?.proxy.zai?.model_mapping || {};
-    }, [appConfig?.proxy.zai?.model_mapping]);
-
 
     // 生成自定义映射表单的选项 (从 models 动态生成，统一纯正 Model ID 风格)
     const customMappingOptions: SelectOption[] = useMemo(() => {
@@ -810,77 +795,6 @@ export default function ApiProxy() {
             console.error('Failed to clear rate limits:', error);
             showToast(`${t('common.error')}: ${error}`, 'error');
         }
-    };
-
-    const refreshZaiModels = async () => {
-        if (!appConfig?.proxy.zai) return;
-        setZaiModelsLoading(true);
-        setZaiModelsError(null);
-        try {
-            const models = await invoke<string[]>('fetch_zai_models', {
-                zai: appConfig.proxy.zai,
-                upstreamProxy: appConfig.proxy.upstream_proxy,
-                requestTimeout: appConfig.proxy.request_timeout,
-            });
-            setZaiAvailableModels(models);
-        } catch (error: any) {
-            console.error('Failed to fetch z.ai models:', error);
-            setZaiModelsError(error.toString());
-        } finally {
-            setZaiModelsLoading(false);
-        }
-    };
-
-    const updateZaiDefaultModels = (updates: Partial<NonNullable<ProxyConfig['zai']>['models']>) => {
-        if (!appConfig?.proxy.zai) return;
-        const newConfig = {
-            ...appConfig,
-            proxy: {
-                ...appConfig.proxy,
-                zai: {
-                    ...appConfig.proxy.zai,
-                    models: { ...appConfig.proxy.zai.models, ...updates }
-                }
-            }
-        };
-        saveConfig(newConfig);
-    };
-
-    const upsertZaiModelMapping = (from: string, to: string) => {
-        if (!appConfig?.proxy.zai) return;
-        const currentMapping = appConfig.proxy.zai.model_mapping || {};
-        const newMapping = { ...currentMapping, [from]: to };
-
-        const newConfig = {
-            ...appConfig,
-            proxy: {
-                ...appConfig.proxy,
-                zai: {
-                    ...appConfig.proxy.zai,
-                    model_mapping: newMapping
-                }
-            }
-        };
-        saveConfig(newConfig);
-    };
-
-    const removeZaiModelMapping = (from: string) => {
-        if (!appConfig?.proxy.zai) return;
-        const currentMapping = appConfig.proxy.zai.model_mapping || {};
-        const newMapping = { ...currentMapping };
-        delete newMapping[from];
-
-        const newConfig = {
-            ...appConfig,
-            proxy: {
-                ...appConfig.proxy,
-                zai: {
-                    ...appConfig.proxy.zai,
-                    model_mapping: newMapping
-                }
-            }
-        };
-        saveConfig(newConfig);
     };
 
     const updateZaiGeneralConfig = (updates: Partial<NonNullable<ProxyConfig['zai']>>) => {
@@ -2226,111 +2140,6 @@ print(response.choices[0].message.content)`;
                                         upstreamProxy={appConfig.proxy.upstream_proxy}
                                         requestTimeout={appConfig.proxy.request_timeout}
                                     />
-
-                                    {/* Model Mapping Section */}
-                                    <div className="pt-4 border-t border-gray-100 dark:border-base-200">
-                                        <div className="flex items-center justify-between mb-3">
-                                            <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
-                                                {t('proxy.config.zai.models.title')}
-                                            </h4>
-                                            <button
-                                                onClick={refreshZaiModels}
-                                                disabled={zaiModelsLoading || !(appConfig.proxy.zai?.keys?.some(k => k.enabled && k.key.trim()) || appConfig.proxy.zai?.api_key?.trim())}
-                                                className="btn btn-ghost btn-xs gap-1"
-                                            >
-                                                <RefreshCw size={12} className={zaiModelsLoading ? 'animate-spin' : ''} />
-                                                {t('proxy.config.zai.models.refresh')}
-                                            </button>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            {['opus', 'sonnet', 'haiku'].map((family) => (
-                                                <div key={family} className="space-y-1">
-                                                    <label className="text-[10px] text-gray-500 capitalize">{family}</label>
-                                                    <div className="flex gap-1">
-                                                        {zaiModelOptions.length > 0 && (
-                                                            <select
-                                                                className="select select-xs select-bordered max-w-[80px]"
-                                                                value=""
-                                                                onChange={(e) => e.target.value && updateZaiDefaultModels({ [family]: e.target.value })}
-                                                            >
-                                                                <option value="">{t('proxy.config.zai.models.select_placeholder')}</option>
-                                                                {zaiModelOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                                                            </select>
-                                                        )}
-                                                        <input
-                                                            type="text"
-                                                            className="input input-xs input-bordered w-full font-mono"
-                                                            value={appConfig.proxy.zai?.models?.[family as keyof typeof appConfig.proxy.zai.models] || ''}
-                                                            onChange={(e) => updateZaiDefaultModels({ [family]: e.target.value })}
-                                                        />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-
-                                        <details className="mt-3 group">
-                                            <summary className="cursor-pointer text-[10px] text-gray-500 hover:text-blue-500 transition-colors inline-flex items-center gap-1 select-none">
-                                                <Settings size={12} />
-                                                {t('proxy.config.zai.models.advanced_title')}
-                                            </summary>
-                                            <div className="mt-2 space-y-2 p-2 bg-gray-50 dark:bg-base-200 border border-gray-200/50 dark:border-base-300 rounded-lg">
-                                                {/* Advanced Mapping Table */}
-                                                {Object.entries(zaiModelMapping).map(([from, to]) => (
-                                                    <div key={from} className="flex items-center gap-2">
-                                                        <div className="flex-1 bg-white dark:bg-base-100 px-2 py-1 rounded border border-gray-200 dark:border-base-300 text-[10px] font-mono truncate" title={from}>{from}</div>
-                                                        <ArrowRight size={10} className="text-gray-400" />
-                                                        <div className="flex-[1.5] flex gap-1">
-                                                            {zaiModelOptions.length > 0 && (
-                                                                <select
-                                                                    className="select select-xs select-ghost h-6 min-h-0 px-1"
-                                                                    value=""
-                                                                    onChange={(e) => e.target.value && upsertZaiModelMapping(from, e.target.value)}
-                                                                >
-                                                                    <option value="">▼</option>
-                                                                    {zaiModelOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                                                                </select>
-                                                            )}
-                                                            <input
-                                                                type="text"
-                                                                className="input input-xs input-bordered w-full font-mono h-6"
-                                                                value={to}
-                                                                onChange={(e) => upsertZaiModelMapping(from, e.target.value)}
-                                                            />
-                                                        </div>
-                                                        <button onClick={() => removeZaiModelMapping(from)} className="text-gray-400 hover:text-red-500"><Trash2 size={12} /></button>
-                                                    </div>
-                                                ))}
-
-                                                <div className="flex items-center gap-2 pt-2 border-t border-gray-200/50">
-                                                    <input
-                                                        className="input input-xs input-bordered flex-1 font-mono"
-                                                        placeholder={t('proxy.config.zai.models.from_placeholder') || "From (e.g. claude-3-opus)"}
-                                                        value={zaiNewMappingFrom}
-                                                        onChange={e => setZaiNewMappingFrom(e.target.value)}
-                                                    />
-                                                    <input
-                                                        className="input input-xs input-bordered flex-1 font-mono"
-                                                        placeholder={t('proxy.config.zai.models.to_placeholder') || "To (e.g. glm-4)"}
-                                                        value={zaiNewMappingTo}
-                                                        onChange={e => setZaiNewMappingTo(e.target.value)}
-                                                    />
-                                                    <button
-                                                        className="btn btn-xs btn-primary"
-                                                        onClick={() => {
-                                                            if (zaiNewMappingFrom && zaiNewMappingTo) {
-                                                                upsertZaiModelMapping(zaiNewMappingFrom, zaiNewMappingTo);
-                                                                setZaiNewMappingFrom('');
-                                                                setZaiNewMappingTo('');
-                                                            }
-                                                        }}
-                                                    >
-                                                        <Plus size={12} />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </details>
-                                    </div>
                                 </div>
                             </CollapsibleCard>
 

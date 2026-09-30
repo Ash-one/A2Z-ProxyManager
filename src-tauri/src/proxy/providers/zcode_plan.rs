@@ -22,6 +22,26 @@ use crate::proxy::config::{UpstreamProxyConfig, ZaiConfig, ZaiKeyEntry};
 pub const APP_VERSION: &str = "3.14.3";
 /// Plan 通道 Anthropic 兼容基座（消息与 count_tokens 同基座）。
 pub const PLAN_BASE: &str = "https://zcode.z.ai/api/v1/zcode-plan/anthropic";
+
+/// ZCode Plan 与 z.ai 支持的可反代模型列表（供代理端点 /v1/models、/v1/models/claude 等自动发现）
+pub const ZCODE_SUPPORTED_MODELS: &[&str] = &[
+    "GLM-5.3-Flash",
+    "GLM-5.3",
+    "GLM-5-Turbo",
+    "GLM-5.1-Highspeed",
+    "GLM-4.5-Air",
+    "GLM-4.6V",
+    "glm-5.3-flash",
+    "glm-5.3",
+    "glm-5-turbo",
+    "glm-5.1-highspeed",
+    "glm-4.5-air",
+    "glm-4.6v",
+    "glm-4-plus",
+    "glm-4-air",
+    "glm-4-flash",
+    "glm-4-long",
+];
 /// 计费/领取基座（⚠️ WAF 风险点：连续查询易触发拦截，仅手动按需）。
 pub const BILLING_BASE: &str = "https://zcode.z.ai/api/v1/zcode-plan";
 /// 运行配置（免鉴权；实测带 platform 参数会被拒 3001，仅带 app_version）。

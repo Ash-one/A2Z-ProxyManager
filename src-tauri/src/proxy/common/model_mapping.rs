@@ -169,6 +169,7 @@ pub async fn get_all_dynamic_models(
     custom_mapping: &tokio::sync::RwLock<std::collections::HashMap<String, String>>,
     token_manager: Option<&crate::proxy::token_manager::TokenManager>,
     only_raw_quota_models: bool,
+    zai: Option<&crate::proxy::ZaiConfig>,
 ) -> Vec<String> {
     use std::collections::HashSet;
     let mut model_ids = HashSet::new();
@@ -177,6 +178,16 @@ pub async fn get_all_dynamic_models(
     if let Some(tm) = token_manager {
         for dynamic_model in tm.get_all_collected_models() {
             model_ids.insert(dynamic_model);
+        }
+    }
+
+    // 1.1 [zcode/z.ai 反代模型] 只要配置了 zai / zcode 凭证或开启了反代，自动注入可用的真实 GLM 模型
+    let zai_active = zai
+        .map(|z| z.enabled || !z.resolved_keys().is_empty())
+        .unwrap_or(false);
+    if zai_active {
+        for m in crate::proxy::providers::zcode_plan::ZCODE_SUPPORTED_MODELS {
+            model_ids.insert(m.to_string());
         }
     }
 
@@ -481,12 +492,20 @@ mod tests {
         );
 
         // When only_raw_quota_models is TRUE, custom_mapping & built-in aliases (like gpt-4o) should be filtered out
-        let models_raw = get_all_dynamic_models(&custom_mapping, None, true).await;
+        let models_raw = get_all_dynamic_models(&custom_mapping, None, true, None).await;
         assert!(!models_raw.contains(&"gpt-4o".to_string()));
 
         // When only_raw_quota_models is FALSE, custom_mapping should be included
-        let models_all = get_all_dynamic_models(&custom_mapping, None, false).await;
+        let models_all = get_all_dynamic_models(&custom_mapping, None, false, None).await;
         assert!(models_all.contains(&"gpt-4o".to_string()));
+
+        // When zai is enabled with keys, GLM models should be included
+        let mut zai = crate::proxy::ZaiConfig::default();
+        zai.enabled = true;
+        zai.api_key = "test_key".to_string();
+        let models_with_zai = get_all_dynamic_models(&custom_mapping, None, true, Some(&zai)).await;
+        assert!(models_with_zai.contains(&"GLM-5.3-Flash".to_string()));
+        assert!(models_with_zai.contains(&"GLM-5.3".to_string()));
     }
 
     #[test]

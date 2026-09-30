@@ -4954,17 +4954,28 @@ pub async fn handle_list_models(State(state): State<AppState>) -> impl IntoRespo
     use crate::proxy::common::model_mapping::get_all_dynamic_models;
 
     let only_raw = *state.only_raw_quota_models.read().await;
-    let model_ids =
-        get_all_dynamic_models(&state.custom_mapping, Some(&state.token_manager), only_raw).await;
+    let zai_guard = state.zai.read().await;
+    let model_ids = get_all_dynamic_models(
+        &state.custom_mapping,
+        Some(&state.token_manager),
+        only_raw,
+        Some(&*zai_guard),
+    )
+    .await;
 
     let data: Vec<_> = model_ids
         .into_iter()
         .map(|id| {
+            let owned_by = if id.to_lowercase().starts_with("glm-") {
+                "zcode"
+            } else {
+                "antigravity"
+            };
             json!({
                 "id": id,
                 "object": "model",
                 "created": 1706745600,
-                "owned_by": "antigravity"
+                "owned_by": owned_by
             })
         })
         .collect();

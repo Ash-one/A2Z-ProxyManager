@@ -13,13 +13,20 @@ use crate::proxy::server::AppState;
 fn map_model_for_zai(original: &str, state: &crate::proxy::ZaiConfig) -> String {
     let m = original.to_lowercase();
     if let Some(mapped) = state.model_mapping.get(original) {
-        return mapped.clone();
+        if !mapped.trim().is_empty() {
+            return mapped.clone();
+        }
     }
     if let Some(mapped) = state.model_mapping.get(&m) {
-        return mapped.clone();
+        if !mapped.trim().is_empty() {
+            return mapped.clone();
+        }
     }
     if m.starts_with("zai:") {
         return original[4..].to_string();
+    }
+    if m.starts_with("zcode:") {
+        return original[6..].to_string();
     }
     if m.starts_with("glm-") {
         return original.to_string();
@@ -27,13 +34,17 @@ fn map_model_for_zai(original: &str, state: &crate::proxy::ZaiConfig) -> String 
     if !m.starts_with("claude-") {
         return original.to_string();
     }
-    if m.contains("opus") {
+    if m.contains("opus") && !state.models.opus.trim().is_empty() {
         return state.models.opus.clone();
     }
-    if m.contains("haiku") {
+    if m.contains("haiku") && !state.models.haiku.trim().is_empty() {
         return state.models.haiku.clone();
     }
-    state.models.sonnet.clone()
+    if !state.models.sonnet.trim().is_empty() {
+        return state.models.sonnet.clone();
+    }
+    // [反代容错] 未显式配置映射时，Claude 系列模型默认回退至 GLM-5.3
+    "GLM-5.3".to_string()
 }
 
 fn join_base_url(base: &str, path: &str) -> Result<String, String> {

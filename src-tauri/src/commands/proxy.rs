@@ -685,59 +685,59 @@ fn extract_model_ids(value: &serde_json::Value) -> Vec<String> {
     out
 }
 
-/// Fetch available models from the configured z.ai Anthropic-compatible API (`/v1/models`).
+/// Fetch available models from the configured z.ai Anthropic-compatible API (`/v1/models`),
+/// fallback to built-in supported models for ZCode Plan / pure JWT accounts.
 #[tauri::command]
 pub async fn fetch_zai_models(
     zai: crate::proxy::ZaiConfig,
     upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
     request_timeout: u64,
 ) -> Result<Vec<String>, String> {
-    // [zcode T1] 跟随池内首个可用 Key；base URL 按 Key 所属 provider 家族解析
-    let primary = zai.primary_api_key().ok_or("z.ai api_key is not set")?;
-    let base_url =
-        crate::proxy::config::ZaiConfig::effective_base_url(primary.provider, &zai.base_url);
-    if base_url.trim().is_empty() {
-        return Err("z.ai base_url is empty".to_string());
+    let mut models: Vec<String> = crate::proxy::providers::zcode_plan::ZCODE_SUPPORTED_MODELS
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
+    if let Some(primary) = zai.primary_api_key() {
+        let base_url =
+            crate::proxy::config::ZaiConfig::effective_base_url(primary.provider, &zai.base_url);
+        if !base_url.trim().is_empty() {
+            let url = join_base_url(&base_url, "/v1/models");
+            let mut builder =
+                reqwest::Client::builder().timeout(Duration::from_secs(request_timeout.max(5)));
+            if upstream_proxy.enabled && !upstream_proxy.url.is_empty() {
+                if let Ok(proxy) = reqwest::Proxy::all(crate::proxy::config::normalize_proxy_url(
+                    &upstream_proxy.url,
+                )) {
+                    builder = builder.proxy(proxy);
+                }
+            }
+            if let Ok(client) = builder.build() {
+                if let Ok(resp) = client
+                    .get(&url)
+                    .header("Authorization", format!("Bearer {}", primary.key))
+                    .header("x-api-key", primary.key)
+                    .header("anthropic-version", "2023-06-01")
+                    .header("accept", "application/json")
+                    .send()
+                    .await
+                {
+                    if resp.status().is_success() {
+                        if let Ok(text) = resp.text().await {
+                            if let Ok(json) = serde_json::from_str::<serde_json::Value>(&text) {
+                                for m in extract_model_ids(&json) {
+                                    if !m.trim().is_empty() && !models.contains(&m) {
+                                        models.push(m);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    let url = join_base_url(&base_url, "/v1/models");
-
-    let mut builder =
-        reqwest::Client::builder().timeout(Duration::from_secs(request_timeout.max(5)));
-    if upstream_proxy.enabled && !upstream_proxy.url.is_empty() {
-        let proxy = reqwest::Proxy::all(&upstream_proxy.url)
-            .map_err(|e| format!("Invalid upstream proxy url: {}", e))?;
-        builder = builder.proxy(proxy);
-    }
-    let client = builder
-        .build()
-        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
-
-    let resp = client
-        .get(&url)
-        .header("Authorization", format!("Bearer {}", primary.key))
-        .header("x-api-key", primary.key)
-        .header("anthropic-version", "2023-06-01")
-        .header("accept", "application/json")
-        .send()
-        .await
-        .map_err(|e| format!("Upstream request failed: {}", e))?;
-
-    let status = resp.status();
-    let text = resp
-        .text()
-        .await
-        .map_err(|e| format!("Failed to read response: {}", e))?;
-
-    if !status.is_success() {
-        let preview = crate::proxy::mappers::common_utils::safe_truncate_str(&text, 4000);
-        return Err(format!("Upstream returned {}: {}", status, preview));
-    }
-
-    let json: serde_json::Value =
-        serde_json::from_str(&text).map_err(|e| format!("Invalid JSON response: {}", e))?;
-    let mut models = extract_model_ids(&json);
-    models.retain(|s| !s.trim().is_empty());
     models.sort();
     models.dedup();
     Ok(models)

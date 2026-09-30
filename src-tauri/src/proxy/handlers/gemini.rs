@@ -1083,8 +1083,14 @@ pub async fn handle_list_models(
 
     // 获取所有动态模型列表（与 /v1/models 一致）
     let only_raw = *state.only_raw_quota_models.read().await;
-    let model_ids =
-        get_all_dynamic_models(&state.custom_mapping, Some(&state.token_manager), only_raw).await;
+    let zai_guard = state.zai.read().await;
+    let model_ids = get_all_dynamic_models(
+        &state.custom_mapping,
+        Some(&state.token_manager),
+        only_raw,
+        Some(&*zai_guard),
+    )
+    .await;
 
     // 转换为 Gemini API 格式
     let models: Vec<_> = model_ids

@@ -611,8 +611,17 @@ pub async fn handle_messages(
         crate::proxy::common::model_mapping::normalize_to_standard_id(&request.model)
             .unwrap_or_else(|| request.model.clone());
 
+    let is_glm_model = {
+        let m = request.model.to_lowercase();
+        m.starts_with("glm-") || m.starts_with("zai:") || m.starts_with("zcode:")
+    };
+
     let use_zai = if !zai_enabled {
         false
+    } else if is_glm_model {
+        // [反代体验最佳化] 当客户端明确请求 GLM 系列模型（如 GLM-5.3-Flash / glm-5.3 等）时，
+        // 无论全局调度模式为何，确定性路由至 z.ai / zcode 反代通道，避免误入 Google 报 404。
+        true
     } else {
         match zai.dispatch_mode {
             crate::proxy::ZaiDispatchMode::Off => false,
@@ -2076,17 +2085,28 @@ pub async fn handle_list_models(State(state): State<AppState>) -> impl IntoRespo
     use crate::proxy::common::model_mapping::get_all_dynamic_models;
 
     let only_raw = *state.only_raw_quota_models.read().await;
-    let model_ids =
-        get_all_dynamic_models(&state.custom_mapping, Some(&state.token_manager), only_raw).await;
+    let zai_guard = state.zai.read().await;
+    let model_ids = get_all_dynamic_models(
+        &state.custom_mapping,
+        Some(&state.token_manager),
+        only_raw,
+        Some(&*zai_guard),
+    )
+    .await;
 
     let data: Vec<_> = model_ids
         .into_iter()
         .map(|id| {
+            let owned_by = if id.to_lowercase().starts_with("glm-") {
+                "zcode"
+            } else {
+                "antigravity"
+            };
             json!({
                 "id": id,
                 "object": "model",
                 "created": 1706745600,
-                "owned_by": "antigravity"
+                "owned_by": owned_by
             })
         })
         .collect();
@@ -2104,8 +2124,18 @@ pub async fn handle_count_tokens(
     Json(body): Json<Value>,
 ) -> Response {
     let zai = state.zai.read().await.clone();
-    let zai_enabled =
-        zai.enabled && !matches!(zai.dispatch_mode, crate::proxy::ZaiDispatchMode::Off);
+    let is_glm_model = body
+        .get("model")
+        .and_then(|v| v.as_str())
+        .map(|m| {
+            let lower = m.to_lowercase();
+            lower.starts_with("glm-") || lower.starts_with("zai:") || lower.starts_with("zcode:")
+        })
+        .unwrap_or(false);
+    let zai_has_keys = !zai.resolved_keys().is_empty();
+    let zai_enabled = (zai.enabled
+        && !matches!(zai.dispatch_mode, crate::proxy::ZaiDispatchMode::Off))
+        || (zai_has_keys && is_glm_model);
 
     if zai_enabled {
         return crate::proxy::providers::zai_anthropic::forward_anthropic_json(
