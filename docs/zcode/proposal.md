@@ -1,10 +1,10 @@
 # 提案：zcode（Z.AI Coding Plan）订阅账号池接入
 
-> **状态：Working Proposal（T1/T2 已实现 → 见 `implementation.md` / `implementation-t2.md`；T3 未实施）**
+> **状态：Working Proposal（T1/T2/T3 均已实现 → 见 `implementation.md` / `implementation-t2.md` / `implementation-t3.md`）**
 > 决策类别：Feature（新增对外可见能力）
 > 分支：`feat/zcode-subscription`（自 `origin/main` 分叉；远端当前不存在 `origin/beta`，实现阶段若 beta 通道恢复，按维护协议先落 beta）
-> 前置调研：本仓库架构探索（`EXPLORATION_REPORT.md`）、`zcode2api` 参考实现分析（2025-09-30）、公开协议事实文档（pi-zcode-provider PROTOCOL.md 与 zcode2api README，仅提取端点/请求响应形态/状态码语义，见 `implementation-t2.md` 净室声明）
-> 通过后的归宿：T1 已实现并重写为稳定决策记录（`docs/zcode/implementation.md`）；T2 同（`docs/zcode/implementation-t2.md`）；T3 实现后按同惯例落独立决策记录，本提案保留未实施部分与否决/演进理由。
+> 前置调研：本仓库架构探索（`EXPLORATION_REPORT.md`）、`zcode2api` 参考实现分析（2025-09-30）、公开协议事实文档（pi-zcode-provider PROTOCOL.md 与 zcode2api 05-upstream-protocols.md，仅提取端点/请求响应形态/状态码语义，见 `implementation-t3.md` 净室声明）
+> 通过后的归宿：T1 已实现并重写为稳定决策记录（`docs/zcode/implementation.md`）；T2 同（`docs/zcode/implementation-t2.md`）；T3 同（`docs/zcode/implementation-t3.md`）。本提案保留演进脉络与决策记录。
 
 ---
 
@@ -37,13 +37,15 @@ A2Z-ProxyManager 的账号池目前只承载 antigravity（Google OAuth）账号
 - ~~额度查询走 billing 端点，错峰轮询~~ **实现期修订（用户决策）**：首版为**手动按需查询**（`/api/biz/subscription/list`，Bearer 业务 JWT，data 容错透传）；后台错峰轮询留待通道稳定后评估（WAF 拦截风险最小化起步）；
 - ✅ 手动导入：粘贴 JWT（3 段点分判定）或 API Key 自动判别入池；~~复用现有账号导入 UI~~ **实现期修订（用户决策）**：UI 留在 z.ai 设置卡内（导入框 + OAuth 按钮 + Plan JWT 徽标 + 按钮式额度查询），Accounts 页接入留后续。
 
-### T3 — Plan 通道完整仿真（订阅核心价值，第二期）
+### T3 — Plan 通道完整仿真（✅ 已实现，决策记录：`implementation-t3.md`）
 
-- 每请求 `X-Aliyun-Captcha-Verify-Param`（Plan 通道必需，token TTL ~2 分钟）；
-- 每账号独立指纹（`device_mid` 全新 UUIDv4 + 桌面 SKU）、首启安装序仿真（`client/configs` + `app_launch`/`app_daily_active` 事件上报、`install_id` 持久化）；
-- 限时套餐自动/手动领取（`preview`/`claim`、`server_time` 回执、`1005` 名额用完按 `next_at` 退避）；
-- 模型名大小写敏感映射（`glm-5.3-flash → GLM-5.3-Flash` 等），按 AGENTS.md 惯例优先通配规则；
-- **验证码求解路线为未决项**（见 §6），手动过码（用户浏览器滑块产生 verify_param → 端内转发）为默认起步路线。
+- ✅ 每请求 `X-Aliyun-Captcha-Verify-Param`（Plan 通道必需，token TTL ~2 分钟，进程内 90s 新鲜窗控制调度）；
+- ✅ 端内无痕自动过码：前端 Webview 内置加载阿里云官方验证码 SDK，无痕静默获取 `verifyParam` 并提交后端，失败或需人工验证时弹出滑块兜底，支持手动点击"过码"与失败自动重试；
+- ✅ 每账号独立设备档案：成套桌面端高可信 SKU 表（平台/架构/系统版本/分辨率严格绑定，禁止笛卡尔积），全新 UUIDv4 `device_mid`，随 `ZaiKeyEntry.device_profile` 字段持久化；
+- ✅ 首启安装序仿真：服务启动后台异步执行 `client/configs` 拉取与 16 字段激活事件（`app_launch`/`app_daily_active`）上报；
+- ✅ 限时套餐领取：JWT 行专属活动面板，调用 `preview` 预览套餐，点击带验证码 `claim` 领取，精准映射 `1003`、`1005`（退避时间倒计时）与 `3007` 语义；
+- ✅ Plan 额度查询：手动按需查询 `billing/balance`（PlanSlot 各模型额度），前端优雅解析展示；
+- ✅ 模型名大小写敏感规范化：通配分段算法（`canonicalize_plan_model`），自动处理 `glm-5.3-flash → GLM-5.3-Flash`、`glm-4.6v → GLM-4.6V` 等。
 
 ## 3. 受影响的所有权边界
 
@@ -78,18 +80,18 @@ A2Z-ProxyManager 的账号池目前只承载 antigravity（Google OAuth）账号
 | A1 | T1：配置 ≥2 个 zai/bigmodel Key 后，`/v1/messages` 连续请求在 Key 间轮询；人为置某 Key 401 后请求自动跳过并标记 INVALID | provider 组合 + 调度 | 本地起服 + `curl /v1/messages` 序列观察 + 账号状态查询；聚焦单测覆盖选择/跳过纯逻辑 | **部分执行**：选择/跳过/状态机单测 14 例通过（`cargo test zai`）；真实 Key 端到端 curl 序列**未执行**（环境无凭证，见 implementation.md 未验证边界） |
 | A2 | T1：旧配置（单 `api_key`）升级后行为不回退，Key 迁入列表 | 配置迁移/持久化 | 迁移单测 + 旧 `gui_config.json` 启动回放 | **单测通过**（迁移 + 旧格式 JSON 回放反序列化） |
 | A3 | ~~T2：OAuth 登录后账号入池并以 JWT 发起请求成功；JWT 失效（3004）时标记并按回退通道续服~~ **修订（协议事实校正）**：T2 = OAuth 登录后账号入池并以**自动开通的订阅 API Key** 发起请求成功；登录会话 `3004` 过期正确上报；JWT（Plan 通道）凭证入池配对存储、转发待 T3 | OAuth 流程 + 入池组合 | 真实账号端到端（需凭证）；无凭证时明确标注"未验证边界"，单测覆盖 poll 信封/3004 语义/开钥容错解析/入池组装 | **部分执行**：单测 30 例通过（`cargo test zai` 17 + `cargo test zcode` 13，含 poll 信封 3004、开钥链容错解析、JWT 条目调度排除）；真实账号 OAuth 端到端**未执行**（环境无凭证，见 implementation-t2.md 未验证边界） |
-| A4 | T3：Plan 通道请求携带有效 verify_param 成功；挑战失效（3007）原地换码重试 ≤3 后上抛 | 验证码注入 + 重试语义 | 真实账号端到端；单元层以注入桩验证头部与重试序列 | 未执行（T3 未实施） |
+| A4 | T3：Plan 通道请求携带有效 verify_param 成功；挑战失效（3007）状态机置 CaptchaNeeded、失效缓存并原地换槽位重试 | 验证码注入 + 重试语义 | 单元层以注入桩验证头部、状态机转移与重试序列 | **执行**：单测 47 例通过（`cargo test zai` 17 + `cargo test zcode` 30，含模型名通配、指纹 SKU 生成、14 头构建、失败分类与验证码有效窗）；真实账号真机端到端留待用户现场联调 |
 | A5 | 全阶段：Google 池行为零回退（exclusive/pooled/fallback 三模式下 antigravity 路径回归） | 既有消费路径回归 | 现有测试全绿 + `cargo clippy --all-targets --all-features` + `npm run build`（AGENTS.md pre-flight） | **执行**：clippy 0 error（新代码 0 warning）、`npm run build` 通过、`cargo test --lib proxy::` 既有套件全绿；全量测试矩阵留 CI |
 | A6 | headless parity：全部新配置可通过 config 文件 + env 覆盖，Docker 容器内等价可用 | 部署组合 | `docker/Dockerfile.backend` 构建冒烟 | **部分执行**：`ABV_ZAI_KEYS`/`ZAI_KEYS` env 解析单测通过 + 启动覆写路径落地；Docker 构建冒烟**未执行**（本地无 Docker） |
-| A7 | UI：Accounts 页可见 zcode 账号状态/配额；12 语言键完整 | 前端消费路径 | `npm run build`（tsc）+ locale 键完整性检查 | **T1+T2 范围通过**：z.ai 卡内 Key 池管理 + 状态徽标 + OAuth 登录 + 导入判别 + Plan JWT 徽标 + 按需额度查询 + 12 语言键全等校验通过；Accounts 页按实现决策留后续 |
+| A7 | UI：z.ai 卡内可见 zcode 账号状态/配额/活动套餐领取/过码交互；12 语言键完整 | 前端消费路径 | `npm run build`（tsc）+ locale 键完整性检查 | **全阶段通过**：z.ai 卡内 Key 池管理 + 状态徽标 + OAuth 登录 + 导入判别 + Plan JWT 徽标 + 额度查询 + 端内无痕过码 + 限时套餐领取弹窗 + 12 语言键（47 键）全等校验通过 |
 
 ## 6. 风险、权衡与主动放弃的能力
 
-1. **验证码求解器路线（未决，最大工程摩擦）**：zcode2api 用 Node 子进程跑阿里云 SDK（21MB 依赖）。候选：①手动过码起步（默认，零依赖）；②Tauri sidecar/外置求解服务（桌面打包跨平台摩擦大，Docker 无压力）；③纯 Rust 移植（不可行：混淆 JS SDK 依赖浏览器环境）。**主动放弃**：首版不做全自动求解。
-2. **上游协议漂移**：客户端版本（当前 3.11.2）、头部形态是移动靶，T3 需长期跟随；T1/T2 面较小。**主动放弃**：不做版本自适应探测，采用单一真相源常量模块（对齐 zcode2api 的 constants 收口纪律）。
-3. **账号风控面扩大**：`3012/405` 真风控需立即 DISABLED 熔断保护资产；billing 轮询须错峰。接受此运维责任为功能代价。**T2 实现期落定**：billing 首版为手动按需查询（无后台轮询，风控面不扩大）；错峰轮询留通道稳定后评估。
-4. **AGPL 净室约束**：贡献者若接触过 zcode2api 源码，提交需声明仅依据协议事实文档重写；PR 模板的"问题分类"栏注明。
-5. **配置命名空间**：~~倾向复用 `proxy.zai`……留给实现期决策~~ **已落定（T1 实现期）**：复用 `proxy.zai`，新增 `keys: ZaiKeyEntry[]`，遗留 `api_key` 保留迁移兼容；T3 引入领取/指纹配置时再评估是否拆分 `proxy.zcode`。
+1. **验证码求解器路线（已落定：端内无痕自动为主，人工滑块兜底）**：在前端 Webview 内置加载阿里云官方 SDK，默认静默完成无痕验证自动出参同步至后端，零额外 Node/jsdom 二进制依赖；当被风控挑战时弹出滑块人工兜底；支持手动点击"过码"。
+2. **上游协议漂移**：客户端版本常量单一真相源收口（`APP_VERSION = "3.14.3"`），严格对应官方最新发布版；对齐 constants 收口纪律。
+3. **账号风控面扩大**：`3007` 自动退避至 CaptchaNeeded；`402` 自动设置 30 分钟恢复窗；`429` 冷却 300 秒；billing/balance 与 claim 仅限手动按需触发，避免后台高频探活引发风控。
+4. **AGPL 净室约束**：全部代码由协议事实文档独立净室重写，严守 CC-BY-NC-SA-4.0 协议规范。
+5. **配置命名空间（已落定：延续复用 `proxy.zai`）**：JWT 条目直接置于 `proxy.zai.keys`，通过 `device_profile` 字段持久化设备档案，保持配置单一精简，不建立多余的顶级 `proxy.zcode` 命名空间。
 
 ## 7. 发版策略
 

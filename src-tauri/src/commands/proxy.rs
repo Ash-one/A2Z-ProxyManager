@@ -843,6 +843,125 @@ pub async fn zcode_query_quota(
     .await
 }
 
+// ===== [zcode T3] Plan 通道：验证码配置/提交、Plan 额度、限时套餐领取 =====
+
+fn resolve_plan_profile(
+    zcode_jwt: &str,
+    device_profile: Option<serde_json::Value>,
+) -> crate::proxy::providers::zcode_plan::DeviceProfile {
+    crate::proxy::providers::zcode_plan::profile_for_parts(
+        "",
+        zcode_jwt,
+        &device_profile.unwrap_or(serde_json::Value::Null),
+    )
+}
+
+async fn current_zai_config(state: &State<'_, ProxyServiceState>) -> crate::proxy::ZaiConfig {
+    let instance_lock = state.instance.read().await;
+    if let Some(instance) = instance_lock.as_ref() {
+        instance.config.zai.clone()
+    } else {
+        crate::modules::config::load_app_config()
+            .map(|c| c.proxy.zai)
+            .unwrap_or_default()
+    }
+}
+
+/// 验证码场景配置（client/configs 动态值优先，失败回退默认；前端过码组件入参）。
+#[tauri::command]
+pub async fn zcode_captcha_config(
+    upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
+    request_timeout: u64,
+) -> Result<crate::proxy::providers::zcode_plan::ZcodeCaptchaCommandConfig, String> {
+    crate::proxy::providers::zcode_plan::captcha_command_config(&upstream_proxy, request_timeout)
+        .await
+}
+
+/// 提交端内过码产物（无痕验证成功回调的 verifyParam）：
+/// 入进程内验证码存储（消息转发取用）并清除该账号的 CaptchaNeeded 标记。
+#[tauri::command]
+pub async fn zcode_captcha_submit(
+    state: State<'_, ProxyServiceState>,
+    account_id: String,
+    key: String,
+    verify_param: String,
+    region: String,
+) -> Result<(), String> {
+    if verify_param.trim().is_empty() {
+        return Err("verify_param is empty".to_string());
+    }
+    let captcha_key = crate::proxy::providers::zcode_plan::captcha_key_for(&account_id, &key);
+    crate::proxy::providers::zcode_plan::ZcodeCaptchaStore::global().store(
+        &captcha_key,
+        verify_param,
+        region,
+    );
+    let zai = current_zai_config(&state).await;
+    crate::proxy::providers::zai_pool::ZaiKeyPool::global()
+        .clear_captcha_needed(&zai, &captcha_key);
+    Ok(())
+}
+
+/// Plan 额度查询（billing/balance，PlanSlot 数据源；⚠️ WAF 风险 → 仅手动按需）。
+#[tauri::command]
+pub async fn zcode_plan_quota(
+    zcode_jwt: String,
+    device_profile: Option<serde_json::Value>,
+    upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
+    request_timeout: u64,
+) -> Result<serde_json::Value, String> {
+    let profile = resolve_plan_profile(&zcode_jwt, device_profile);
+    crate::proxy::providers::zcode_plan::plan_balance(
+        &zcode_jwt,
+        &profile,
+        &upstream_proxy,
+        request_timeout,
+    )
+    .await
+}
+
+/// 限时套餐预览（活动未上线 404 属正常态 → 空列表）。
+#[tauri::command]
+pub async fn zcode_claim_preview(
+    zcode_jwt: String,
+    device_profile: Option<serde_json::Value>,
+    upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
+    request_timeout: u64,
+) -> Result<Vec<crate::proxy::providers::zcode_plan::ZcodeClaimPlan>, String> {
+    let profile = resolve_plan_profile(&zcode_jwt, device_profile);
+    crate::proxy::providers::zcode_plan::claim_preview(
+        &zcode_jwt,
+        &profile,
+        &upstream_proxy,
+        request_timeout,
+    )
+    .await
+}
+
+/// 领取限时套餐（需新鲜验证码；业务码语义见 ZcodeClaimResult）。
+#[tauri::command]
+pub async fn zcode_claim(
+    zcode_jwt: String,
+    device_profile: Option<serde_json::Value>,
+    plan_id: String,
+    verify_param: String,
+    region: String,
+    upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
+    request_timeout: u64,
+) -> Result<crate::proxy::providers::zcode_plan::ZcodeClaimResult, String> {
+    let profile = resolve_plan_profile(&zcode_jwt, device_profile);
+    Ok(crate::proxy::providers::zcode_plan::claim_plan(
+        &zcode_jwt,
+        &profile,
+        &plan_id,
+        &verify_param,
+        &region,
+        &upstream_proxy,
+        request_timeout,
+    )
+    .await)
+}
+
 /// 获取当前调度配置
 #[tauri::command]
 pub async fn get_proxy_scheduling_config(

@@ -25,6 +25,10 @@ const DEFAULT_RATE_LIMIT_DELAY: Duration = Duration::from_secs(30);
 const TRANSIENT_COOLDOWN: Duration = Duration::from_secs(15);
 /// 单请求内账号级失败转移的硬上限（有界重试；AGENTS.md 风险路径纪律）
 pub const MAX_FAILOVER_ATTEMPTS: usize = 4;
+/// zcode T3：Plan 通道额度耗尽重试窗（协议事实：exhausted 30min）
+const PLAN_EXHAUSTED_WINDOW: Duration = Duration::from_secs(30 * 60);
+/// zcode T3：Plan 通道 429 默认冷却（协议事实：cooling 300s）
+const PLAN_RATE_LIMIT_WINDOW: Duration = Duration::from_secs(300);
 
 /// Key 运行态（内存态，重启即清零）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -34,11 +38,15 @@ pub enum ZaiKeyStatus {
     /// 401/403：凭证失效，跳过直至重启或配置变更
     Invalid,
     /// 402：额度/配额耗尽，跳过直至重启或配置变更
+    /// （zcode T3：Plan 通道携带 until = 30 分钟重试窗）
     Exhausted,
     /// 429/529：短时限速，Retry-After（或默认窗口）到期自动恢复
     RateLimited,
     /// 5xx：瞬时故障短冷却
     Cooldown,
+    /// zcode T3：Plan 通道验证码挑战（3007/403+captcha）——需端内重新过码，
+    /// 新参数提交后自动恢复 Active
+    CaptchaNeeded,
 }
 
 impl ZaiKeyStatus {
@@ -47,7 +55,7 @@ impl ZaiKeyStatus {
     pub fn is_available(self, until: Option<SystemTime>, now: SystemTime) -> bool {
         match self {
             ZaiKeyStatus::Active => true,
-            ZaiKeyStatus::Invalid | ZaiKeyStatus::Exhausted => false,
+            ZaiKeyStatus::Invalid | ZaiKeyStatus::Exhausted | ZaiKeyStatus::CaptchaNeeded => false,
             ZaiKeyStatus::RateLimited | ZaiKeyStatus::Cooldown => {
                 until.map(|t| t <= now).unwrap_or(true)
             }
@@ -90,6 +98,12 @@ pub struct SelectedZaiKey {
     pub key: String,
     pub provider: ZaiProvider,
     pub masked_key: String,
+    /// zcode T3：凭证模式（jwt → Plan 通道转发分支）
+    pub mode: ZaiKeyMode,
+    /// zcode T3：账号配对身份（验证码存储键锚点）
+    pub account_id: String,
+    /// zcode T3：持久化设备档案（Plan 通道身份头；可能为 Null → 运行时生成）
+    pub device_profile: serde_json::Value,
 }
 
 /// 掩码展示：`sk-abcd...wxyz`；过短 Key 全掩码，避免泄露形态信息。
@@ -191,17 +205,26 @@ impl ZaiKeyPool {
     }
 
     /// 当前可参与调度的条目下标（enabled + 非空 + 状态机放行）。
-    /// zcode T2：`mode=Jwt` 条目挂 Plan 通道（`zcode.z.ai`，需 T3 验证码机制），
-    /// 在通道就绪前不参与消息转发调度，仅作为凭证存储与 billing 查询锚点。
+    /// zcode T3：`mode=Jwt` 条目（Plan 通道）仅在其账号的验证码参数处于新鲜窗内
+    /// 可调度（无新鲜参数 → 无效请求，浪费账号风控额度）。
     fn available_indices(entries: &[PoolEntry], now: SystemTime) -> Vec<usize> {
+        let captcha_store = crate::proxy::providers::zcode_plan::ZcodeCaptchaStore::global();
         entries
             .iter()
             .enumerate()
             .filter(|(_, e)| {
                 e.cfg.enabled
                     && !e.cfg.key.trim().is_empty()
-                    && e.cfg.mode != ZaiKeyMode::Jwt
                     && e.status.is_available(e.status_until, now)
+                    && match e.cfg.mode {
+                        ZaiKeyMode::ApiKey => true,
+                        ZaiKeyMode::Jwt => captcha_store.is_fresh(
+                            &crate::proxy::providers::zcode_plan::captcha_key_for(
+                                &e.cfg.account_id,
+                                &e.cfg.key,
+                            ),
+                        ),
+                    }
             })
             .map(|(i, _)| i)
             .collect()
@@ -234,6 +257,9 @@ impl ZaiKeyPool {
             key: entry.cfg.key.clone(),
             provider: entry.cfg.provider,
             masked_key: mask_key(&entry.cfg.key),
+            mode: entry.cfg.mode,
+            account_id: entry.cfg.account_id.clone(),
+            device_profile: entry.cfg.device_profile.clone(),
         })
     }
 
@@ -312,6 +338,116 @@ impl ZaiKeyPool {
         classification
     }
 
+    /// zcode T3：Plan 通道失败分类上报（协议事实 §被拒信号）。
+    /// - CaptchaChallenge → CaptchaNeeded（同时失效该账号验证码缓存）
+    /// - Exhausted → Exhausted（30 分钟重试窗，到期自动恢复）
+    /// - RateLimited → RateLimited（Retry-After / 默认 300s）
+    /// - InvalidAuth → Invalid
+    /// - Transient → Cooldown（短冷却）
+    /// - RequestLevel → 不改变 Key 状态
+    /// 返回分类供调用方做失败转移决策。
+    pub fn classify_plan_and_report(
+        &self,
+        zai: &ZaiConfig,
+        key: &str,
+        failure: crate::proxy::providers::zcode_plan::PlanFailure,
+        retry_after_header: Option<&str>,
+    ) -> crate::proxy::providers::zcode_plan::PlanFailure {
+        use crate::proxy::providers::zcode_plan::{PlanFailure, ZcodeCaptchaStore};
+        self.sync_if_needed(zai);
+        let now = SystemTime::now();
+        let mut guard = self
+            .inner
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(entry) = guard.entries.iter_mut().find(|e| e.cfg.key == key) {
+            let next = match failure {
+                PlanFailure::CaptchaChallenge => {
+                    ZcodeCaptchaStore::global().invalidate(
+                        &crate::proxy::providers::zcode_plan::captcha_key_for(
+                            &entry.cfg.account_id,
+                            &entry.cfg.key,
+                        ),
+                    );
+                    Some((
+                        ZaiKeyStatus::CaptchaNeeded,
+                        None,
+                        "captcha challenge (3007)".to_string(),
+                    ))
+                }
+                PlanFailure::Exhausted => Some((
+                    ZaiKeyStatus::Exhausted,
+                    now.checked_add(PLAN_EXHAUSTED_WINDOW),
+                    "plan quota exhausted (30min window)".to_string(),
+                )),
+                PlanFailure::RateLimited => {
+                    let delay = retry_after_header
+                        .and_then(|s| s.trim().parse::<u64>().ok())
+                        .map(Duration::from_secs)
+                        .unwrap_or(PLAN_RATE_LIMIT_WINDOW);
+                    Some((
+                        ZaiKeyStatus::RateLimited,
+                        now.checked_add(delay),
+                        format!("plan rate-limited"),
+                    ))
+                }
+                PlanFailure::InvalidAuth => Some((
+                    ZaiKeyStatus::Invalid,
+                    None,
+                    "plan credential rejected".to_string(),
+                )),
+                PlanFailure::Transient => Some((
+                    ZaiKeyStatus::Cooldown,
+                    now.checked_add(TRANSIENT_COOLDOWN),
+                    "plan transient server error".to_string(),
+                )),
+                PlanFailure::RequestLevel => None,
+            };
+            if let Some((status, until, err)) = next {
+                entry.status = status;
+                entry.status_until = until;
+                entry.last_error = Some(err);
+            }
+        }
+        failure
+    }
+
+    /// zcode T3：标记需要过码（调度发现无新鲜验证码时）。
+    pub fn mark_captcha_needed(&self, zai: &ZaiConfig, key: &str) {
+        self.sync_if_needed(zai);
+        let mut guard = self
+            .inner
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(entry) = guard.entries.iter_mut().find(|e| e.cfg.key == key) {
+            if entry.status != ZaiKeyStatus::CaptchaNeeded {
+                entry.status = ZaiKeyStatus::CaptchaNeeded;
+                entry.status_until = None;
+                entry.last_error = Some("captcha param missing or stale".to_string());
+            }
+        }
+    }
+
+    /// zcode T3：新验证码提交后清除 CaptchaNeeded 标记（按验证码存储键匹配）。
+    pub fn clear_captcha_needed(&self, zai: &ZaiConfig, captcha_key: &str) {
+        self.sync_if_needed(zai);
+        let mut guard = self
+            .inner
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        for entry in guard.entries.iter_mut() {
+            let entry_captcha_key = crate::proxy::providers::zcode_plan::captcha_key_for(
+                &entry.cfg.account_id,
+                &entry.cfg.key,
+            );
+            if entry_captcha_key == captcha_key && entry.status == ZaiKeyStatus::CaptchaNeeded {
+                entry.status = ZaiKeyStatus::Active;
+                entry.status_until = None;
+                entry.last_error = None;
+            }
+        }
+    }
+
     /// 失败转移判定：该分类是否为“账号级故障”，应立即换下一个可用 Key 原地重试。
     /// 请求级错误（404 模型不存在、400 签名污染等）不转移 —— 换 Key 无益。
     pub fn should_failover(classification: &UpstreamClassification) -> bool {
@@ -343,6 +479,15 @@ impl ZaiKeyPool {
                             Some(until.duration_since(now).map(|d| d.as_secs()).unwrap_or(0)),
                         ),
                         _ => (ZaiKeyStatus::Active, None),
+                    },
+                    // zcode T3：Plan 通道 Exhausted 携带 30 分钟 until，到期归一化恢复
+                    ZaiKeyStatus::Exhausted => match e.status_until {
+                        Some(until) if until > now => (
+                            e.status,
+                            Some(until.duration_since(now).map(|d| d.as_secs()).unwrap_or(0)),
+                        ),
+                        Some(_) => (ZaiKeyStatus::Active, None),
+                        None => (e.status, None),
                     },
                     other => (other, None),
                 };
@@ -377,6 +522,7 @@ mod tests {
             account_id: String::new(),
             user_email: String::new(),
             business_jwt: String::new(),
+            device_profile: serde_json::Value::Null,
         }
     }
 
@@ -391,6 +537,7 @@ mod tests {
             account_id: "acc-1".to_string(),
             user_email: "user@x.io".to_string(),
             business_jwt: "biz.jwt".to_string(),
+            device_profile: serde_json::Value::Null,
         }
     }
 

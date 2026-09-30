@@ -128,6 +128,8 @@ export interface ZaiKeyEntry {
     user_email?: string;
     /** api.z.ai 管理 JWT（billing/订阅查询专用，绝不用于消息转发） */
     business_jwt?: string;
+    /** zcode T3：每账号设备档案（成套桌面 SKU + 稳定 device_mid，随配置持久化） */
+    device_profile?: unknown;
 }
 
 export interface ZaiMcpConfig {
@@ -154,8 +156,8 @@ export interface ZaiConfig {
     mcp: ZaiMcpConfig;
 }
 
-// [zcode T1] Key 池运行状态（掩码展示，与后端 ZaiKeyStatusView 对齐）
-export type ZaiKeyRuntimeStatus = 'Active' | 'Invalid' | 'Exhausted' | 'RateLimited' | 'Cooldown';
+// [zcode T1/T3] Key 池运行状态（掩码展示，与后端 ZaiKeyStatusView 对齐）
+export type ZaiKeyRuntimeStatus = 'Active' | 'Invalid' | 'Exhausted' | 'RateLimited' | 'Cooldown' | 'CaptchaNeeded';
 
 export interface ZaiKeyStatusView {
     index: number;
@@ -183,6 +185,33 @@ export interface ZcodePollCommandResult {
     status: 'pending' | 'expired' | 'ready';
     entries: ZaiKeyEntry[];
     warning?: string | null;
+}
+
+// [zcode T3] 验证码场景配置（client/configs 动态取值 + app_version）
+export interface ZcodeCaptchaConfig {
+    enabled: boolean;
+    prefix: string;
+    region: string;
+    scene_id: string;
+    app_version: string;
+}
+
+// [zcode T3] 限时套餐预览项
+export interface ZcodeClaimPlan {
+    plan_id: string;
+    name: string;
+    description: string;
+    priority?: unknown;
+    grants?: unknown;
+}
+
+// [zcode T3] 限时套餐领取结果
+export interface ZcodeClaimResult {
+    ok: boolean;
+    code: number;
+    message: string;
+    next_at_ms?: number | null;
+    data?: unknown;
 }
 
 export interface ScheduledWarmupConfig {

@@ -519,6 +519,10 @@ pub struct ZaiKeyEntry {
     /// zcode T2：api.z.ai 管理 JWT（业务令牌），billing/订阅查询专用，绝不用于消息转发。
     #[serde(default)]
     pub business_jwt: String,
+    /// zcode T3：每账号设备档案（成套桌面 SKU + 稳定 device_mid；JSON 持久化，
+    /// OAuth 登录时生成；手动导入条目为 Null → 进程内生成稳定档案）。
+    #[serde(default)]
+    pub device_profile: serde_json::Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -581,6 +585,7 @@ impl ZaiConfig {
             account_id: String::new(),
             user_email: String::new(),
             business_jwt: String::new(),
+            device_profile: serde_json::Value::Null,
         }]
     }
 
@@ -656,6 +661,7 @@ pub fn parse_zai_keys_env(raw: &str) -> Vec<ZaiKeyEntry> {
                 account_id: String::new(),
                 user_email: String::new(),
                 business_jwt: String::new(),
+                device_profile: serde_json::Value::Null,
             }
         })
         .filter(|e| !e.key.is_empty())

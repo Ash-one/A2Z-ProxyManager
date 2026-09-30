@@ -174,7 +174,6 @@ pub async fn forward_anthropic_json(
     // [FIX #307] Explicitly serialize body to Vec<u8> to ensure Content-Length is set correctly.
     // This avoids "Transfer-Encoding: chunked" for small bodies which caused connection errors.
     let body_bytes = serde_json::to_vec(&body).unwrap_or_default();
-    let body_len = body_bytes.len();
 
     let timeout_secs = state.request_timeout.max(5);
     let upstream_proxy = state.upstream_proxy.read().await.clone();
@@ -186,6 +185,9 @@ pub async fn forward_anthropic_json(
     // [zcode T1] 多 Key 轮询 + 账号级失败转移：
     // 每个可用 Key 占一个槽位（提案 A1）；账号级失败（429/529、5xx、401/403、402）
     // 在响应尚未下发客户端前原地换下一个可用 Key 重试，尝试次数有界。
+    // [zcode T3] JWT 槽位走 Plan 通道（zcode.z.ai zcode-plan）：Bearer JWT +
+    // 客户端身份头全集 + 验证码头；新鲜验证码是 JWT 槽位可调度的前提（池侧已过滤，
+    // 此处二次防御）。
     let pool = ZaiKeyPool::global();
     let max_attempts = pool.available_count(&zai).clamp(1, MAX_FAILOVER_ATTEMPTS);
 
@@ -205,35 +207,92 @@ pub async fn forward_anthropic_json(
             }
         };
 
-        let base_url =
-            crate::proxy::config::ZaiConfig::effective_base_url(selected.provider, &zai.base_url);
-        let url = match join_base_url(&base_url, path) {
-            Ok(u) => u,
-            Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
+        // [zcode T3] Plan 通道分支准备（JWT 槽位）
+        let is_plan = selected.mode == crate::proxy::config::ZaiKeyMode::Jwt;
+        let plan_captcha_key = crate::proxy::providers::zcode_plan::captcha_key_for(
+            &selected.account_id,
+            &selected.key,
+        );
+
+        let (url, slot_headers, slot_body_bytes) = if is_plan {
+            use crate::proxy::providers::zcode_plan as zplan;
+            let Some(captcha) = zplan::ZcodeCaptchaStore::global().take_fresh(&plan_captcha_key)
+            else {
+                // 无新鲜验证码：不浪费上游请求（防风控消耗），标记并换下一槽位
+                pool.mark_captcha_needed(&zai, &selected.key);
+                tracing::warn!(
+                    "[zcode T3] plan slot {} skipped: no fresh captcha param",
+                    selected.masked_key
+                );
+                continue;
+            };
+            let profile = zplan::profile_for_parts(
+                &selected.account_id,
+                &selected.key,
+                &selected.device_profile,
+            );
+            // Plan 通道模型名大小写敏感：通配规则规范化（幂等）
+            let mut plan_body = body.clone();
+            if let Some(m) = plan_body
+                .get("model")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+            {
+                plan_body["model"] = Value::String(zplan::canonicalize_plan_model(&m));
+            }
+            let bytes = serde_json::to_vec(&plan_body).unwrap_or_default();
+            let url = zplan::plan_request_url(path);
+            let headers = zplan::build_plan_headers(
+                &profile,
+                &selected.key,
+                Some((&captcha.param, &captcha.region)),
+            );
+            (url, headers, bytes)
+        } else {
+            let base_url = crate::proxy::config::ZaiConfig::effective_base_url(
+                selected.provider,
+                &zai.base_url,
+            );
+            let url = match join_base_url(&base_url, path) {
+                Ok(u) => u,
+                Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
+            };
+            let mut headers = copy_passthrough_headers(incoming_headers);
+            set_zai_auth(&mut headers, incoming_headers, &selected.key);
+            // Ensure JSON content type.
+            headers
+                .entry(header::CONTENT_TYPE)
+                .or_insert(HeaderValue::from_static("application/json"));
+            let header_list = headers
+                .iter()
+                .filter_map(|(k, v)| {
+                    let name = k.as_str().to_string();
+                    v.to_str().ok().map(|val| (name, val.to_string()))
+                })
+                .collect();
+            (url, header_list, body_bytes.clone())
         };
 
-        let mut headers = copy_passthrough_headers(incoming_headers);
-        set_zai_auth(&mut headers, incoming_headers, &selected.key);
-
-        // Ensure JSON content type.
-        headers
-            .entry(header::CONTENT_TYPE)
-            .or_insert(HeaderValue::from_static("application/json"));
-
         tracing::debug!(
-            "Forwarding request to {} (len: {} bytes): {} [key {}, attempt {}/{}]",
-            selected.provider.canonical_base_url(),
-            body_len,
+            "Forwarding request (plan={}) (len: {} bytes): {} [key {}, attempt {}/{}]",
+            is_plan,
+            slot_body_bytes.len(),
             url,
             selected.masked_key,
             attempt + 1,
             max_attempts
         );
 
-        let req = client
-            .request(method.clone(), &url)
-            .headers(headers)
-            .body(body_bytes.clone());
+        let mut req = client.request(method.clone(), &url).body(slot_body_bytes);
+        for (k, v) in &slot_headers {
+            if let (Ok(name), Ok(val)) = (
+                header::HeaderName::from_bytes(k.as_bytes()),
+                HeaderValue::from_str(v),
+            ) {
+                req = req.header(name, val);
+            }
+        }
+        let req = req;
 
         let resp = match req.send().await {
             Ok(r) => r,
@@ -277,21 +336,44 @@ pub async fn forward_anthropic_json(
             .and_then(|v| v.to_str().ok())
             .map(|s| s.to_string());
         let content_type = resp.headers().get(header::CONTENT_TYPE).cloned();
+        let header_names: Vec<String> = resp
+            .headers()
+            .iter()
+            .map(|(k, _)| k.as_str().to_string())
+            .collect();
         let error_body = resp.text().await.unwrap_or_default();
-        let classification = pool.classify_and_report(
-            &zai,
-            &selected.key,
-            status_u16,
-            retry_after_header.as_deref(),
-            &error_body,
-        );
-
-        let account_level = ZaiKeyPool::should_failover(&classification);
+        let (account_level, classification_log) = if is_plan {
+            use crate::proxy::providers::zcode_plan as zplan;
+            // Plan 通道分类（协议事实 §被拒信号）：3007/403+captcha → 换码，
+            // 402 → 30 分钟耗尽窗，429 → 300s，401/403 → 凭证失效
+            let challenge = zplan::challenge_header_present(&header_names);
+            let failure = zplan::classify_plan_failure(status_u16, &error_body, challenge);
+            let failure = pool.classify_plan_and_report(
+                &zai,
+                &selected.key,
+                failure,
+                retry_after_header.as_deref(),
+            );
+            let level = failure.should_failover();
+            (level, format!("plan:{failure:?}"))
+        } else {
+            let classification = pool.classify_and_report(
+                &zai,
+                &selected.key,
+                status_u16,
+                retry_after_header.as_deref(),
+                &error_body,
+            );
+            (
+                ZaiKeyPool::should_failover(&classification),
+                format!("{classification:?}"),
+            )
+        };
         tracing::warn!(
-            "[zcode T1] z.ai key {} got {} (classification: {:?}), account-level failover: {}",
+            "[zcode T1] z.ai key {} got {} (classification: {}), account-level failover: {}",
             selected.masked_key,
             status_u16,
-            classification,
+            classification_log,
             account_level
         );
         if account_level && attempt + 1 < max_attempts {

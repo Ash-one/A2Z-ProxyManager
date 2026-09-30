@@ -563,6 +563,27 @@ impl AxumServer {
             "Image scheduler initialized"
         );
 
+        // [zcode T3] 首启安装序仿真：进程启动后对全部 JWT 条目执行一次
+        // client/configs + 激活事件上报（官方客户端每次启动都拉 configs/发 app_launch；
+        // 全程 best-effort，失败仅日志，不阻断启动）
+        {
+            let zai_state_spawn = zai_state.clone();
+            let proxy_cfg_spawn = upstream_proxy.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                let zai = zai_state_spawn.read().await.clone();
+                let errors = crate::proxy::providers::zcode_plan::ensure_install_sequences(
+                    &zai,
+                    &proxy_cfg_spawn,
+                    10,
+                )
+                .await;
+                for e in errors {
+                    tracing::warn!("[zcode T3] install-sequence: {}", e);
+                }
+            });
+        }
+
         let state = AppState {
             token_manager: token_manager.clone(),
             custom_mapping: custom_mapping_state.clone(),
@@ -864,6 +885,11 @@ impl AxumServer {
             .route("/zcode/oauth/start", post(admin_zcode_oauth_start))
             .route("/zcode/oauth/poll", post(admin_zcode_oauth_poll))
             .route("/zcode/quota", post(admin_zcode_query_quota))
+            .route("/zcode/captcha/config", post(admin_zcode_captcha_config))
+            .route("/zcode/captcha/submit", post(admin_zcode_captcha_submit))
+            .route("/zcode/plan/quota", post(admin_zcode_plan_quota))
+            .route("/zcode/plan/claim/preview", post(admin_zcode_claim_preview))
+            .route("/zcode/plan/claim", post(admin_zcode_claim))
             .route(
                 "/proxy/monitor/toggle",
                 post(admin_set_proxy_monitor_enabled),
@@ -2310,6 +2336,143 @@ async fn admin_zcode_query_quota(
         Ok(data) => Ok(Json(data)),
         Err(e) => Err((StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: e }))),
     }
+}
+
+// ===== [zcode T3] Plan 通道：验证码、额度、套餐领取（Web/无头模式与 Tauri 命令等价） =====
+
+fn zcode_payload_str(payload: &serde_json::Value, snake: &str, camel: &str) -> String {
+    payload
+        .get(snake)
+        .or_else(|| payload.get(camel))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string()
+}
+
+fn zcode_payload_profile(payload: &serde_json::Value) -> Option<serde_json::Value> {
+    payload
+        .get("device_profile")
+        .or_else(|| payload.get("deviceProfile"))
+        .cloned()
+        .filter(|v| !v.is_null())
+}
+
+async fn admin_zcode_captcha_config(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let upstream_proxy = state.upstream_proxy.read().await.clone();
+    match crate::proxy::providers::zcode_plan::captcha_command_config(
+        &upstream_proxy,
+        state.request_timeout,
+    )
+    .await
+    {
+        Ok(cfg) => Ok(Json(cfg)),
+        Err(e) => Err((StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: e }))),
+    }
+}
+
+async fn admin_zcode_captcha_submit(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let account_id = zcode_payload_str(&payload, "account_id", "accountId");
+    let key = zcode_payload_str(&payload, "key", "key");
+    let verify_param = zcode_payload_str(&payload, "verify_param", "verifyParam");
+    let region = zcode_payload_str(&payload, "region", "region");
+    if verify_param.trim().is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "verify_param is empty".to_string(),
+            }),
+        ));
+    }
+    let captcha_key = crate::proxy::providers::zcode_plan::captcha_key_for(&account_id, &key);
+    crate::proxy::providers::zcode_plan::ZcodeCaptchaStore::global().store(
+        &captcha_key,
+        verify_param,
+        region,
+    );
+    let zai = state.zai.read().await.clone();
+    crate::proxy::providers::zai_pool::ZaiKeyPool::global()
+        .clear_captcha_needed(&zai, &captcha_key);
+    Ok(Json(serde_json::json!({ "ok": true })))
+}
+
+async fn admin_zcode_plan_quota(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let zcode_jwt = zcode_payload_str(&payload, "zcode_jwt", "zcodeJwt");
+    let profile = crate::proxy::providers::zcode_plan::profile_for_parts(
+        "",
+        &zcode_jwt,
+        &zcode_payload_profile(&payload).unwrap_or(serde_json::Value::Null),
+    );
+    let upstream_proxy = state.upstream_proxy.read().await.clone();
+    match crate::proxy::providers::zcode_plan::plan_balance(
+        &zcode_jwt,
+        &profile,
+        &upstream_proxy,
+        state.request_timeout,
+    )
+    .await
+    {
+        Ok(data) => Ok(Json(data)),
+        Err(e) => Err((StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: e }))),
+    }
+}
+
+async fn admin_zcode_claim_preview(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let zcode_jwt = zcode_payload_str(&payload, "zcode_jwt", "zcodeJwt");
+    let profile = crate::proxy::providers::zcode_plan::profile_for_parts(
+        "",
+        &zcode_jwt,
+        &zcode_payload_profile(&payload).unwrap_or(serde_json::Value::Null),
+    );
+    let upstream_proxy = state.upstream_proxy.read().await.clone();
+    match crate::proxy::providers::zcode_plan::claim_preview(
+        &zcode_jwt,
+        &profile,
+        &upstream_proxy,
+        state.request_timeout,
+    )
+    .await
+    {
+        Ok(plans) => Ok(Json(plans)),
+        Err(e) => Err((StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: e }))),
+    }
+}
+
+async fn admin_zcode_claim(
+    State(state): State<AppState>,
+    Json(payload): Json<serde_json::Value>,
+) -> Result<impl IntoResponse, (StatusCode, Json<ErrorResponse>)> {
+    let zcode_jwt = zcode_payload_str(&payload, "zcode_jwt", "zcodeJwt");
+    let plan_id = zcode_payload_str(&payload, "plan_id", "planId");
+    let verify_param = zcode_payload_str(&payload, "verify_param", "verifyParam");
+    let region = zcode_payload_str(&payload, "region", "region");
+    let profile = crate::proxy::providers::zcode_plan::profile_for_parts(
+        "",
+        &zcode_jwt,
+        &zcode_payload_profile(&payload).unwrap_or(serde_json::Value::Null),
+    );
+    let upstream_proxy = state.upstream_proxy.read().await.clone();
+    let result = crate::proxy::providers::zcode_plan::claim_plan(
+        &zcode_jwt,
+        &profile,
+        &plan_id,
+        &verify_param,
+        &region,
+        &upstream_proxy,
+        state.request_timeout,
+    )
+    .await;
+    Ok(Json(result))
 }
 
 async fn admin_set_proxy_monitor_enabled(

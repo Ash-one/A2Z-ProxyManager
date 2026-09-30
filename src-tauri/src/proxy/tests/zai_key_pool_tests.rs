@@ -46,6 +46,7 @@ fn keys_list_takes_precedence_over_legacy_api_key() {
             account_id: String::new(),
             user_email: String::new(),
             business_jwt: String::new(),
+            device_profile: serde_json::Value::Null,
         }],
         ..ZaiConfig::default()
     };

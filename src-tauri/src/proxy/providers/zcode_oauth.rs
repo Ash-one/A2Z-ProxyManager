@@ -126,6 +126,15 @@ fn first_string_field(obj: &Value, keys: &[&str]) -> Option<String> {
         .and_then(value_to_clean_string)
 }
 
+/// base64url 解码（JWT payload 段；自动补齐 padding）。
+pub(crate) fn base64_url_decode(segment: &str) -> Option<Vec<u8>> {
+    use base64::Engine;
+    let seg = segment.trim().trim_end_matches('=');
+    base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(seg)
+        .ok()
+}
+
 /// 从 getCustomerInfo 响应容错提取 (org_id, project_id)。
 /// 协议事实（参考实现确认）：`data.organizations[]`，org 字段 `organizationId`/
 /// `organizationName`，内嵌 `projects[]`（`projectId`/`projectName`）；
@@ -278,6 +287,9 @@ pub fn build_account_entries(
         account_id: account_id.to_string(),
         user_email: user_email.to_string(),
         business_jwt: business_jwt.to_string(),
+        // zcode T3：OAuth 登录即分配每账号设备档案（成套 SKU + 全新 device_mid，
+        // 随配置持久化；"一号一台"语义，跨重启稳定）
+        device_profile: crate::proxy::providers::zcode_plan::generate_device_profile().to_value(),
     }];
     if let Some(k) = provisioned_key {
         entries.push(ZaiKeyEntry {
@@ -293,6 +305,7 @@ pub fn build_account_entries(
             account_id: account_id.to_string(),
             user_email: user_email.to_string(),
             business_jwt: business_jwt.to_string(),
+            device_profile: serde_json::Value::Null,
         });
     }
     entries
@@ -300,7 +313,8 @@ pub fn build_account_entries(
 
 // ===== HTTP 编排 =====
 
-fn build_http_client(
+/// 构建 zcode.z.ai 域 HTTP 客户端（HTTP/1.1、无浏览器伪装头；T3 Plan 通道复用）。
+pub(crate) fn build_http_client(
     upstream_proxy: &UpstreamProxyConfig,
     request_timeout: u64,
 ) -> Result<reqwest::Client, String> {
