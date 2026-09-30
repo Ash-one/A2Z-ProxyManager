@@ -13,5 +13,8 @@ This folder contains developer-focused documentation (architecture, implementati
 - [`docs/zai/vision-mcp.md`](zai/vision-mcp.md) — built-in Vision MCP server protocol and tool implementations.
 - [`docs/zai/notes.md`](zai/notes.md) — research notes, constraints, and future follow-ups (budget/usage, additional endpoints).
 
+## zcode (Z.AI Coding Plan) integration
+- [`docs/zcode/proposal.md`](zcode/proposal.md) — **working proposal (not implemented)**: pooling zcode subscription (OAuth JWT) and API-key accounts alongside antigravity; phased plan, alternatives, acceptance criteria, and open decisions.
+
 ## Agent Integrations
 - [`docs/jeikcode_integration.md`](jeikcode_integration.md) — JeikCode integration guide, one-click synchronization, configuration options, and KV-cache optimization.
