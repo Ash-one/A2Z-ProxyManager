@@ -799,6 +799,21 @@
         "api_key_tooltip": "用于调用 z.ai 上游的 API Key（本地存储）。启用 z.ai 或 MCP 功能前必须配置。",
         "api_key_placeholder": "在此粘贴 z.ai API Key",
         "warning": "提示：该 Key 将保存在本机应用数据目录中。",
+        "keys": {
+            "title": "API Key 池",
+            "title_tooltip": "配置多个 z.ai / bigmodel API Key 组成轮询池：每个可用 Key 占用一个池化槽位；401/403 标记失效并跳过，402 标记耗尽，429 按 Retry-After 限速，5xx 短冷却。",
+            "add": "添加 Key",
+            "provider": "上游",
+            "provider_zai": "z.ai",
+            "provider_bigmodel": "BigModel",
+            "empty_hint": "尚未配置 Key。可添加多个 Key 组成轮询与故障转移池。",
+            "refresh_status": "刷新状态",
+            "status_active": "可用",
+            "status_invalid": "已失效",
+            "status_exhausted": "已耗尽",
+            "status_rate_limited": "限速中",
+            "status_cooldown": "冷却中"
+        },
         "models": {
           "title": "模型映射",
           "title_tooltip": "从 z.ai 拉取可用模型 ID，并配置如何把 Claude/Anthropic 的 model 名称转换为 z.ai 的模型 ID。",

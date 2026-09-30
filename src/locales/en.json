@@ -808,6 +808,21 @@
         "api_key_tooltip": "API key used to authenticate requests to z.ai. Stored locally and required for z.ai and MCP features.",
         "api_key_placeholder": "Paste your z.ai API key here",
         "warning": "Note: This key is stored locally in the app data directory.",
+        "keys": {
+            "title": "API Key Pool",
+            "title_tooltip": "Configure multiple z.ai / bigmodel API keys as a round-robin pool: each available key occupies one pooled slot; 401/403 marks the key invalid and skips it, 402 marks it exhausted, 429 is rate-limited per Retry-After, 5xx triggers a short cooldown.",
+            "add": "Add Key",
+            "provider": "Upstream",
+            "provider_zai": "z.ai",
+            "provider_bigmodel": "BigModel",
+            "empty_hint": "No keys configured yet. Add multiple keys to form a round-robin and failover pool.",
+            "refresh_status": "Refresh status",
+            "status_active": "Active",
+            "status_invalid": "Invalid",
+            "status_exhausted": "Exhausted",
+            "status_rate_limited": "Rate-limited",
+            "status_cooldown": "Cooling down"
+        },
         "models": {
           "title": "Model Mapping",
           "title_tooltip": "Fetch available z.ai model ids and configure how incoming Anthropic/Claude model names are translated to z.ai model ids.",

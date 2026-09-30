@@ -797,6 +797,21 @@
         "api_key_tooltip": "Clave API usada para autenticar solicitudes a z.ai. Almacenada localmente y requerida para funciones z.ai y MCP.",
         "api_key_placeholder": "Pegue su clave API de z.ai aquí",
         "warning": "Nota: Esta clave se almacena localmente en el directorio de datos de la aplicación.",
+        "keys": {
+            "title": "Grupo de API Keys",
+            "title_tooltip": "Configura varias API keys de z.ai / bigmodel como un grupo round-robin: cada clave disponible ocupa un hueco del grupo; 401/403 la marca como inválida y la omite, 402 como agotada, 429 aplica límite según Retry-After y 5xx un enfriamiento breve.",
+            "add": "Añadir clave",
+            "provider": "Proveedor",
+            "provider_zai": "z.ai",
+            "provider_bigmodel": "BigModel",
+            "empty_hint": "Aún no hay claves configuradas. Añade varias claves para formar un grupo con turnos y conmutación por error.",
+            "refresh_status": "Actualizar estado",
+            "status_active": "Disponible",
+            "status_invalid": "Inválida",
+            "status_exhausted": "Agotada",
+            "status_rate_limited": "Limitada",
+            "status_cooldown": "Enfriando"
+        },
         "models": {
           "title": "Mapeo de Modelos",
           "title_tooltip": "Obtener IDs de modelos z.ai disponibles y configurar cómo los nombres de modelos Anthropic/Claude entrantes se traducen a IDs de modelos z.ai.",

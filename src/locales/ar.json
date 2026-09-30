@@ -788,6 +788,21 @@
         "api_key_tooltip": "مفتاح API المستخدم للمصادقة على الطلبات إلى z.ai. مخزن محليًا ومطلوب لـ z.ai وميزات MCP.",
         "api_key_placeholder": "الصق مفتاح z.ai API الخاص بك هنا",
         "warning": "ملاحظة: يتم تخزين هذا المفتاح محليًا في دليل بيانات التطبيق.",
+        "keys": {
+            "title": "مجموعة مفاتيح API",
+            "title_tooltip": "تكوين عدة مفاتيح API من z.ai / bigmodel كمجموعة تدوير: كل مفتاح متاح يشغل خانة واحدة؛ 401/403 يعلّم المفتاح كغير صالح ويتم تخطيه، 402 كنافد، 429 يخضع لـ Retry-After، و5xx تبريد قصير.",
+            "add": "إضافة مفتاح",
+            "provider": "المزود",
+            "provider_zai": "z.ai",
+            "provider_bigmodel": "BigModel",
+            "empty_hint": "لم يتم تكوين أي مفاتيح بعد. أضف عدة مفاتيح لتشكيل مجموعة تدوير وتحويل عند الفشل.",
+            "refresh_status": "تحديث الحالة",
+            "status_active": "متاح",
+            "status_invalid": "غير صالح",
+            "status_exhausted": "نافد",
+            "status_rate_limited": "محدود المعدل",
+            "status_cooldown": "تبريد"
+        },
         "models": {
           "title": "خريطة النماذج",
           "title_tooltip": "جلب معرفات نماذج z.ai المتاحة وتكوين كيفية ترجمة أسماء نماذج Anthropic/Claude الواردة إلى معرفات نماذج z.ai.",

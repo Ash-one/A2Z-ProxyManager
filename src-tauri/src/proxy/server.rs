@@ -860,6 +860,7 @@ impl AxumServer {
                 get(admin_get_active_oauth_client).post(admin_set_active_oauth_client),
             )
             .route("/zai/models/fetch", post(admin_fetch_zai_models))
+            .route("/zai/keys/status", get(admin_get_zai_key_status))
             .route(
                 "/proxy/monitor/toggle",
                 post(admin_set_proxy_monitor_enabled),
@@ -2163,20 +2164,26 @@ async fn admin_fetch_zai_models(
         )
     })?;
 
-    let api_key = zai_config
-        .get("api_key")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
-    let base_url = zai_config
-        .get("base_url")
-        .and_then(|v| v.as_str())
-        .unwrap_or("https://api.z.ai");
+    // [zcode T1] 跟随池内首个可用 Key；base URL 按 Key 所属 provider 家族解析
+    let parsed: crate::proxy::ZaiConfig =
+        serde_json::from_value(zai_config.clone()).unwrap_or_default();
+    let primary = parsed.primary_api_key().ok_or_else(|| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse {
+                error: "z.ai api_key is not set".to_string(),
+            }),
+        )
+    })?;
+    let base_url =
+        crate::proxy::config::ZaiConfig::effective_base_url(primary.provider, &parsed.base_url);
 
     // 尝试从 z.ai 获取模型
     let client = reqwest::Client::new();
     let resp = client
         .get(format!("{}/v1/models", base_url))
-        .header("Authorization", format!("Bearer {}", api_key))
+        .header("Authorization", format!("Bearer {}", primary.key))
+        .header("x-api-key", primary.key)
         .send()
         .await
         .map_err(|e| {
@@ -2212,6 +2219,12 @@ async fn admin_fetch_zai_models(
         .unwrap_or_default();
 
     Ok(Json(models))
+}
+
+/// [zcode T1] z.ai/bigmodel Key 池运行状态（Web/无头模式与 Tauri 命令等价；掩码展示，绝不回传 Key 原文）
+async fn admin_get_zai_key_status(State(state): State<AppState>) -> impl IntoResponse {
+    let zai = state.zai.read().await.clone();
+    Json(crate::proxy::providers::zai_pool::ZaiKeyPool::global().status_snapshot(&zai))
 }
 
 async fn admin_set_proxy_monitor_enabled(

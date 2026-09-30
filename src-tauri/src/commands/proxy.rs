@@ -692,14 +692,15 @@ pub async fn fetch_zai_models(
     upstream_proxy: crate::proxy::config::UpstreamProxyConfig,
     request_timeout: u64,
 ) -> Result<Vec<String>, String> {
-    if zai.base_url.trim().is_empty() {
+    // [zcode T1] 跟随池内首个可用 Key；base URL 按 Key 所属 provider 家族解析
+    let primary = zai.primary_api_key().ok_or("z.ai api_key is not set")?;
+    let base_url =
+        crate::proxy::config::ZaiConfig::effective_base_url(primary.provider, &zai.base_url);
+    if base_url.trim().is_empty() {
         return Err("z.ai base_url is empty".to_string());
     }
-    if zai.api_key.trim().is_empty() {
-        return Err("z.ai api_key is not set".to_string());
-    }
 
-    let url = join_base_url(&zai.base_url, "/v1/models");
+    let url = join_base_url(&base_url, "/v1/models");
 
     let mut builder =
         reqwest::Client::builder().timeout(Duration::from_secs(request_timeout.max(5)));
@@ -714,8 +715,8 @@ pub async fn fetch_zai_models(
 
     let resp = client
         .get(&url)
-        .header("Authorization", format!("Bearer {}", zai.api_key))
-        .header("x-api-key", zai.api_key)
+        .header("Authorization", format!("Bearer {}", primary.key))
+        .header("x-api-key", primary.key)
         .header("anthropic-version", "2023-06-01")
         .header("accept", "application/json")
         .send()
@@ -740,6 +741,23 @@ pub async fn fetch_zai_models(
     models.sort();
     models.dedup();
     Ok(models)
+}
+
+/// [zcode T1] 查询 z.ai/bigmodel Key 池运行状态（掩码展示，绝不回传 Key 原文）。
+/// 服务未运行时回退磁盘配置：无运行态记录的 Key 默认展示为 Active。
+#[tauri::command]
+pub async fn get_zai_key_pool_status(
+    state: State<'_, ProxyServiceState>,
+) -> Result<Vec<crate::proxy::providers::zai_pool::ZaiKeyStatusView>, String> {
+    let instance_lock = state.instance.read().await;
+    let zai = if let Some(instance) = instance_lock.as_ref() {
+        instance.config.zai.clone()
+    } else {
+        crate::modules::config::load_app_config()
+            .map(|c| c.proxy.zai)
+            .unwrap_or_default()
+    };
+    Ok(crate::proxy::providers::zai_pool::ZaiKeyPool::global().status_snapshot(&zai))
 }
 
 /// 获取当前调度配置

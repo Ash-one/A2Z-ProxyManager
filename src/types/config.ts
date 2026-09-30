@@ -112,6 +112,15 @@ export interface StickySessionConfig {
 
 export type ZaiDispatchMode = 'off' | 'exclusive' | 'pooled' | 'fallback';
 
+export type ZaiProvider = 'zai' | 'bigmodel';
+
+export interface ZaiKeyEntry {
+    key: string;
+    provider: ZaiProvider;
+    enabled: boolean;
+    label?: string;
+}
+
 export interface ZaiMcpConfig {
     enabled: boolean;
     web_search_enabled: boolean;
@@ -129,10 +138,25 @@ export interface ZaiConfig {
     enabled: boolean;
     base_url: string;
     api_key: string;
+    keys?: ZaiKeyEntry[];
     dispatch_mode: ZaiDispatchMode;
     model_mapping?: Record<string, string>;
     models: ZaiModelDefaults;
     mcp: ZaiMcpConfig;
+}
+
+// [zcode T1] Key 池运行状态（掩码展示，与后端 ZaiKeyStatusView 对齐）
+export type ZaiKeyRuntimeStatus = 'Active' | 'Invalid' | 'Exhausted' | 'RateLimited' | 'Cooldown';
+
+export interface ZaiKeyStatusView {
+    index: number;
+    masked_key: string;
+    provider: ZaiProvider;
+    enabled: boolean;
+    label: string;
+    status: ZaiKeyRuntimeStatus;
+    status_remaining_secs: number | null;
+    last_error: string | null;
 }
 
 export interface ScheduledWarmupConfig {

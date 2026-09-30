@@ -14,7 +14,8 @@ This folder contains developer-focused documentation (architecture, implementati
 - [`docs/zai/notes.md`](zai/notes.md) — research notes, constraints, and future follow-ups (budget/usage, additional endpoints).
 
 ## zcode (Z.AI Coding Plan) integration
-- [`docs/zcode/proposal.md`](zcode/proposal.md) — **working proposal (not implemented)**: pooling zcode subscription (OAuth JWT) and API-key accounts alongside antigravity; phased plan, alternatives, acceptance criteria, and open decisions.
+- [`docs/zcode/proposal.md`](zcode/proposal.md) — **working proposal (T1 implemented; T2/T3 pending)**: pooling zcode subscription (OAuth JWT) and API-key accounts alongside antigravity; phased plan, alternatives, acceptance criteria, and open decisions.
+- [`docs/zcode/implementation.md`](zcode/implementation.md) — **stable decision record (T1)**: z.ai/BigModel API key pool — independent `ZaiKeyPool`, classification-aligned state machine, pooled slot semantics, migration & headless parity, acceptance evidence.
 
 ## Agent Integrations
 - [`docs/jeikcode_integration.md`](jeikcode_integration.md) — JeikCode integration guide, one-click synchronization, configuration options, and KV-cache optimization.

@@ -33,6 +33,7 @@ import { cn } from '../utils/cn';
 import { useProxyModels } from '../hooks/useProxyModels';
 import GroupedSelect, { SelectOption } from '../components/common/GroupedSelect';
 import { CliSyncCard } from '../components/proxy/CliSyncCard';
+import { ZaiKeyPoolEditor } from '../components/proxy/ZaiKeyPoolEditor';
 import DebouncedSlider from '../components/common/DebouncedSlider';
 import { listAccounts } from '../services/accountService';
 import CircuitBreaker from '../components/settings/CircuitBreaker';
@@ -2218,24 +2219,11 @@ print(response.choices[0].message.content)`;
                                         </div>
                                     </div>
 
-                                    <div className="space-y-1">
-                                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 flex items-center justify-between">
-                                            <span>{t('proxy.config.zai.api_key')}</span>
-                                            {!(appConfig.proxy.zai?.api_key) && (
-                                                <span className="text-amber-500 text-[10px] flex items-center gap-1">
-                                                    <HelpTooltip text={t('proxy.config.zai.warning')} />
-                                                    {t('common.required')}
-                                                </span>
-                                            )}
-                                        </label>
-                                        <input
-                                            type="password"
-                                            value={appConfig.proxy.zai?.api_key || ''}
-                                            onChange={(e) => updateZaiGeneralConfig({ api_key: e.target.value })}
-                                            placeholder="sk-..."
-                                            className="input input-sm input-bordered w-full font-mono text-xs"
-                                        />
-                                    </div>
+                                    {/* [zcode T1] API Key 池（多 Key 轮询/故障转移） */}
+                                    <ZaiKeyPoolEditor
+                                        zai={appConfig.proxy.zai}
+                                        onChange={(updates) => updateZaiGeneralConfig(updates)}
+                                    />
 
                                     {/* Model Mapping Section */}
                                     <div className="pt-4 border-t border-gray-100 dark:border-base-200">
@@ -2245,7 +2233,7 @@ print(response.choices[0].message.content)`;
                                             </h4>
                                             <button
                                                 onClick={refreshZaiModels}
-                                                disabled={zaiModelsLoading || !appConfig.proxy.zai?.api_key}
+                                                disabled={zaiModelsLoading || !(appConfig.proxy.zai?.keys?.some(k => k.enabled && k.key.trim()) || appConfig.proxy.zai?.api_key?.trim())}
                                                 className="btn btn-ghost btn-xs gap-1"
                                             >
                                                 <RefreshCw size={12} className={zaiModelsLoading ? 'animate-spin' : ''} />

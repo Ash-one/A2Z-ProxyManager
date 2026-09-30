@@ -810,6 +810,21 @@
         "api_key_tooltip": "Chave da API usada para autenticar solicitações para z.ai. Armazenada localmente e necessária para recursos z.ai e MCP.",
         "api_key_placeholder": "Cole sua chave de API z.ai aqui",
         "warning": "Nota: Esta chave é armazenada localmente no diretório de dados do aplicativo.",
+        "keys": {
+            "title": "Pool de API Keys",
+            "title_tooltip": "Configura várias API keys da z.ai / bigmodel como um pool round-robin: cada chave disponível ocupa um slot do pool; 401/403 marca como inválida e pula, 402 como esgotada, 429 limita conforme Retry-After e 5xx gera um breve cooldown.",
+            "add": "Adicionar chave",
+            "provider": "Provedor",
+            "provider_zai": "z.ai",
+            "provider_bigmodel": "BigModel",
+            "empty_hint": "Nenhuma chave configurada ainda. Adicione várias chaves para formar um pool de rodízio e failover.",
+            "refresh_status": "Atualizar status",
+            "status_active": "Disponível",
+            "status_invalid": "Inválida",
+            "status_exhausted": "Esgotada",
+            "status_rate_limited": "Limitada",
+            "status_cooldown": "Em cooldown"
+        },
         "models": {
           "title": "Mapeamento de Modelos",
           "title_tooltip": "Buscar IDs de modelos z.ai disponíveis e configurar como os nomes de modelos Anthropic/Claude recebidos são traduzidos para IDs de modelos z.ai.",

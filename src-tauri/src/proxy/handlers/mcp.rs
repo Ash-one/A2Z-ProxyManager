@@ -52,9 +52,13 @@ async fn forward_mcp(
     body: Body,
 ) -> Response {
     let zai = state.zai.read().await.clone();
-    if !zai.enabled || zai.api_key.trim().is_empty() {
-        return (StatusCode::BAD_REQUEST, "z.ai is not configured").into_response();
-    }
+    // [zcode T1] 跟随池内首个可用 Key（MCP 端点为 z.ai 域名专属，不参与轮询）
+    let mcp_api_key = match zai.primary_api_key() {
+        Some(entry) if zai.enabled => entry.key,
+        _ => {
+            return (StatusCode::BAD_REQUEST, "z.ai is not configured").into_response();
+        }
+    };
 
     if !zai.mcp.enabled {
         return StatusCode::NOT_FOUND.into_response();
@@ -78,7 +82,7 @@ async fn forward_mcp(
     };
 
     let mut headers = copy_passthrough_headers(&incoming_headers);
-    if let Ok(v) = HeaderValue::from_str(&format!("Bearer {}", zai.api_key)) {
+    if let Ok(v) = HeaderValue::from_str(&format!("Bearer {}", mcp_api_key)) {
         headers.insert(header::AUTHORIZATION, v);
     }
 
@@ -402,7 +406,8 @@ pub async fn handle_zai_mcp_server(
     body: Body,
 ) -> Response {
     let zai = state.zai.read().await.clone();
-    if !zai.enabled || zai.api_key.trim().is_empty() {
+    // [zcode T1] 跟随池内首个可用 Key（Vision MCP 端点为 z.ai 域名专属，不参与轮询）
+    if !zai.enabled || zai.primary_api_key().is_none() {
         return (StatusCode::BAD_REQUEST, "z.ai is not configured").into_response();
     }
     if !zai.mcp.enabled || !zai.mcp.vision_enabled {

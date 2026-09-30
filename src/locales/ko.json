@@ -797,6 +797,21 @@
         "api_key_tooltip": "z.ai 요청 인증에 사용되는 API 키입니다. 로컬에 저장되며 z.ai 및 MCP 기능에 필요합니다.",
         "api_key_placeholder": "여기에 z.ai API 키를 붙여넣으세요",
         "warning": "참고: 이 키는 앱 데이터 디렉토리에 로컬로 저장됩니다.",
+        "keys": {
+            "title": "API Key 풀",
+            "title_tooltip": "여러 z.ai / bigmodel API Key로 라운드로빈 풀을 구성합니다: 사용 가능한 Key마다 풀 슬롯 1개를 차지하며, 401/403은 무효로 표시 후 건너뛰고, 402는 소진, 429는 Retry-After에 따라 속도 제한, 5xx는 짧은 쿨다운을 적용합니다.",
+            "add": "Key 추가",
+            "provider": "업스트림",
+            "provider_zai": "z.ai",
+            "provider_bigmodel": "BigModel",
+            "empty_hint": "아직 Key가 없습니다. 여러 Key를 추가해 라운드로빈 및 페일오버 풀을 구성하세요.",
+            "refresh_status": "상태 새로고침",
+            "status_active": "사용 가능",
+            "status_invalid": "무효",
+            "status_exhausted": "소진됨",
+            "status_rate_limited": "속도 제한 중",
+            "status_cooldown": "쿨다운 중"
+        },
         "models": {
           "title": "모델 매핑",
           "title_tooltip": "사용 가능한 z.ai 모델 ID를 가져오고 들어오는 Anthropic/Claude 모델 이름이 z.ai 모델 ID로 변환되는 방식을 구성합니다.",

@@ -374,6 +374,26 @@ pub fn run() {
                     }
                     info!("💡 Tips: You can use these keys to login to Web UI and access AI APIs.");
                     info!("💡 Search docker logs or grep gui_config.json to find them.");
+
+                    // [zcode T1] 支持通过环境变量注入 z.ai/bigmodel Key 池（提案 A6 headless parity）
+                    // 优先级：ABV_ZAI_KEYS > ZAI_KEYS > 配置文件
+                    // 语法：逗号/分号/换行分隔；每条可带 `zai:` 或 `bigmodel:` 前缀（缺省 z.ai）
+                    let env_zai_keys = std::env::var("ABV_ZAI_KEYS")
+                        .or_else(|_| std::env::var("ZAI_KEYS"))
+                        .ok();
+
+                    if let Some(raw) = env_zai_keys {
+                        let entries = crate::proxy::parse_zai_keys_env(&raw);
+                        if !entries.is_empty() {
+                            info!(
+                                "Using z.ai key pool from environment variable ({} key(s))",
+                                entries.len()
+                            );
+                            config.proxy.zai.keys = entries;
+                            modified = true;
+                        }
+                    }
+
                     info!("--------------------------------------------------");
 
                     // [FIX #1460] Persist environment overrides to ensure they are visible in Web UI/load_config
@@ -687,6 +707,7 @@ pub fn run() {
             commands::proxy::check_proxy_health,
             commands::proxy::get_proxy_pool_config,
             commands::proxy::fetch_zai_models,
+            commands::proxy::get_zai_key_pool_status,
             commands::proxy::get_proxy_scheduling_config,
             commands::proxy::update_proxy_scheduling_config,
             commands::proxy::clear_proxy_session_bindings,

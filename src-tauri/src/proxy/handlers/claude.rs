@@ -642,11 +642,13 @@ pub async fn handle_messages(
                 }
             }
             crate::proxy::ZaiDispatchMode::Pooled => {
-                // Treat z.ai as exactly one extra slot in the pool.
+                // [zcode T1] 每个可用 z.ai/bigmodel Key = 1 个池化槽位（原为整个 z.ai 1 槽）。
                 // No strict guarantees: it may get 0 requests if selection never hits.
-                let total = google_accounts.saturating_add(1).max(1);
+                let zai_slots =
+                    crate::proxy::providers::zai_pool::ZaiKeyPool::global().available_count(&zai);
+                let total = google_accounts.saturating_add(zai_slots).max(1);
                 let slot = state.provider_rr.fetch_add(1, Ordering::Relaxed) % total;
-                slot == 0
+                slot < zai_slots
             }
         }
     };

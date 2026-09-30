@@ -790,6 +790,21 @@
         "api_key_tooltip": "z.ai'ye istekleri doğrulamak için kullanılan API anahtarı. Yerel olarak saklanır ve z.ai ve MCP özellikleri için gereklidir.",
         "api_key_placeholder": "z.ai API anahtarınızı buraya yapıştırın",
         "warning": "Not: Bu anahtar yerel olarak uygulama veri dizininde saklanır.",
+        "keys": {
+            "title": "API Key Havuzu",
+            "title_tooltip": "Birden fazla z.ai / bigmodel API anahtarını round-robin havuzu olarak yapılandırın: her kullanılabilir anahtar bir havuz yuvası kaplar; 401/403 anahtarı geçersiz işaretler ve atlar, 402 tükenmiş sayar, 429 Retry-After'e göre sınırlanır, 5xx kısa bir bekleme uygular.",
+            "add": "Anahtar ekle",
+            "provider": "Sağlayıcı",
+            "provider_zai": "z.ai",
+            "provider_bigmodel": "BigModel",
+            "empty_hint": "Henüz anahtar yapılandırılmadı. Rotasyon ve yedekleme havuzu oluşturmak için birden fazla anahtar ekleyin.",
+            "refresh_status": "Durumu yenile",
+            "status_active": "Kullanılabilir",
+            "status_invalid": "Geçersiz",
+            "status_exhausted": "Tükendi",
+            "status_rate_limited": "Sınırlanıyor",
+            "status_cooldown": "Beklemede"
+        },
         "models": {
           "title": "Model Eşleme",
           "title_tooltip": "Mevcut z.ai model kimliklerini alın ve gelen Anthropic/Claude model adlarının z.ai model kimliklerine nasıl çevrileceğini yapılandırın.",

@@ -782,6 +782,21 @@
         "api_key_tooltip": "Kunci API digunakan untuk mengesahkan permintaan ke z.ai. Disimpan secara tempatan dan diperlukan untuk ciri z.ai dan MCP.",
         "api_key_placeholder": "Tampal kunci API z.ai anda di sini",
         "warning": "Nota: Kunci ini disimpan secara tempatan dalam direktori data aplikasi.",
+        "keys": {
+            "title": "Kolam API Key",
+            "title_tooltip": "Konfigurasikan beberapa API key z.ai / bigmodel sebagai kolam round-robin: setiap key yang tersedia menduduki satu slot kolam; 401/403 ditanda tidak sah dan dilewati, 402 ditanda habis, 429 had kadar mengikut Retry-After, 5xx menyejuk seketika.",
+            "add": "Tambah Key",
+            "provider": "Penyedia",
+            "provider_zai": "z.ai",
+            "provider_bigmodel": "BigModel",
+            "empty_hint": "Belum ada key dikonfigurasi. Tambah beberapa key untuk membentuk kolam round-robin dan failover.",
+            "refresh_status": "Muat semula status",
+            "status_active": "Tersedia",
+            "status_invalid": "Tidak sah",
+            "status_exhausted": "Habis",
+            "status_rate_limited": "Had kadar",
+            "status_cooldown": "Menyejuk"
+        },
         "models": {
           "title": "Pemetaan Model",
           "title_tooltip": "Dapatkan id model z.ai yang tersedia dan konfigurasikan cara nama model Anthropic/Claude masuk diterjemahkan ke id model z.ai.",

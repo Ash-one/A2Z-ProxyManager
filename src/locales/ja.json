@@ -797,6 +797,21 @@
         "api_key_tooltip": "z.aiへのリクエスト認証に使用するAPIキー。ローカルに保存され、z.aiとMCP機能に必要です。",
         "api_key_placeholder": "z.aiのAPIキーをここに貼り付けてください",
         "warning": "注意: このキーはアプリデータディレクトリにローカル保存されます。",
+        "keys": {
+            "title": "API Key プール",
+            "title_tooltip": "複数の z.ai / bigmodel API Key をラウンドロビンプールとして構成します：利用可能な Key ごとに 1 スロットを占有。401/403 は無効としてマークしてスキップ、402 は枯渇、429 は Retry-After に従いレート制限、5xx は短時間クールダウン。",
+            "add": "Key を追加",
+            "provider": "上流",
+            "provider_zai": "z.ai",
+            "provider_bigmodel": "BigModel",
+            "empty_hint": "Key が未設定です。複数の Key を追加してラウンドロビンとフェイルオーバーのプールを構成できます。",
+            "refresh_status": "状態を更新",
+            "status_active": "利用可能",
+            "status_invalid": "無効",
+            "status_exhausted": "枯渇",
+            "status_rate_limited": "レート制限中",
+            "status_cooldown": "クールダウン中"
+        },
         "models": {
           "title": "モデルマッピング",
           "title_tooltip": "利用可能なz.aiモデルIDを取得し、Claudeモデル名がどのようにz.aiモデルIDに翻訳されるかを構成します。",

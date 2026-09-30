@@ -5,3 +5,4 @@ pub mod retry_strategy_tests;
 pub mod security_integration_tests;
 pub mod security_ip_tests;
 pub mod ultra_priority_tests;
+pub mod zai_key_pool_tests;

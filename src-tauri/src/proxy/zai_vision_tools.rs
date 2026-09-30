@@ -285,7 +285,9 @@ pub async fn call_tool(
     tool_name: &str,
     arguments: &Value,
 ) -> Result<Value, String> {
-    let api_key = zai.api_key.trim();
+    // [zcode T1] 跟随池内首个可用 Key（Vision 端点为 z.ai 域名专属，不参与轮询）
+    let api_key = zai.primary_api_key().map(|e| e.key).unwrap_or_default();
+    let api_key = api_key.trim();
     if api_key.is_empty() {
         return Err("z.ai api_key is missing".to_string());
     }

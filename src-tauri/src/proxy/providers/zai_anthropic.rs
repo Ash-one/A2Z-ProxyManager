@@ -141,13 +141,11 @@ pub async fn forward_anthropic_json(
     mut body: Value,
     message_count: usize, // [NEW v4.0.0] Pass message count for rewind detection
 ) -> Response {
+    use crate::proxy::providers::zai_pool::{ZaiKeyPool, MAX_FAILOVER_ATTEMPTS};
+
     let zai = state.zai.read().await.clone();
     if !zai.enabled || zai.dispatch_mode == crate::proxy::ZaiDispatchMode::Off {
         return (StatusCode::BAD_REQUEST, "z.ai is disabled").into_response();
-    }
-
-    if zai.api_key.trim().is_empty() {
-        return (StatusCode::BAD_REQUEST, "z.ai api_key is not set").into_response();
     }
 
     if let Some(model) = body.get("model").and_then(|v| v.as_str()) {
@@ -169,10 +167,14 @@ pub async fn forward_anthropic_json(
         }
     }
 
-    let url = match join_base_url(&zai.base_url, path) {
-        Ok(u) => u,
-        Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
-    };
+    // [FIX #290] Clean cache_control before sending to Anthropic API
+    // This prevents "Extra inputs are not permitted" errors
+    deep_remove_cache_control(&mut body);
+
+    // [FIX #307] Explicitly serialize body to Vec<u8> to ensure Content-Length is set correctly.
+    // This avoids "Transfer-Encoding: chunked" for small bodies which caused connection errors.
+    let body_bytes = serde_json::to_vec(&body).unwrap_or_default();
+    let body_len = body_bytes.len();
 
     let timeout_secs = state.request_timeout.max(5);
     let upstream_proxy = state.upstream_proxy.read().await.clone();
@@ -181,69 +183,141 @@ pub async fn forward_anthropic_json(
         Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, e).into_response(),
     };
 
-    let mut headers = copy_passthrough_headers(incoming_headers);
-    set_zai_auth(&mut headers, incoming_headers, &zai.api_key);
+    // [zcode T1] 多 Key 轮询 + 账号级失败转移：
+    // 每个可用 Key 占一个槽位（提案 A1）；账号级失败（429/529、5xx、401/403、402）
+    // 在响应尚未下发客户端前原地换下一个可用 Key 重试，尝试次数有界。
+    let pool = ZaiKeyPool::global();
+    let max_attempts = pool.available_count(&zai).clamp(1, MAX_FAILOVER_ATTEMPTS);
 
-    // Ensure JSON content type.
-    headers
-        .entry(header::CONTENT_TYPE)
-        .or_insert(HeaderValue::from_static("application/json"));
+    for attempt in 0..max_attempts {
+        let selected = match pool.select_key(&zai) {
+            Some(s) => s,
+            None => {
+                // 区分“从未配置”与“全部不可用”，两者都是网关内部错误（防自噬，见 policy.rs）
+                if zai.resolved_keys().is_empty() {
+                    return (StatusCode::BAD_REQUEST, "z.ai api_key is not set").into_response();
+                }
+                return (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "All z.ai API keys are unavailable (disabled, invalid, exhausted or rate-limited)",
+                )
+                    .into_response();
+            }
+        };
 
-    // [FIX #290] Clean cache_control before sending to Anthropic API
-    // This prevents "Extra inputs are not permitted" errors
-    if let Some(cc) = body.get("cache_control") {
-        tracing::info!(
-            "[ISSUE-744] Deep cleaning cache_control from ROOT: {:?}",
-            cc
+        let base_url =
+            crate::proxy::config::ZaiConfig::effective_base_url(selected.provider, &zai.base_url);
+        let url = match join_base_url(&base_url, path) {
+            Ok(u) => u,
+            Err(e) => return (StatusCode::BAD_REQUEST, e).into_response(),
+        };
+
+        let mut headers = copy_passthrough_headers(incoming_headers);
+        set_zai_auth(&mut headers, incoming_headers, &selected.key);
+
+        // Ensure JSON content type.
+        headers
+            .entry(header::CONTENT_TYPE)
+            .or_insert(HeaderValue::from_static("application/json"));
+
+        tracing::debug!(
+            "Forwarding request to {} (len: {} bytes): {} [key {}, attempt {}/{}]",
+            selected.provider.canonical_base_url(),
+            body_len,
+            url,
+            selected.masked_key,
+            attempt + 1,
+            max_attempts
         );
-    }
-    deep_remove_cache_control(&mut body);
 
-    // [FIX #307] Explicitly serialize body to Vec<u8> to ensure Content-Length is set correctly.
-    // This avoids "Transfer-Encoding: chunked" for small bodies which caused connection errors.
-    let body_bytes = serde_json::to_vec(&body).unwrap_or_default();
-    let body_len = body_bytes.len();
+        let req = client
+            .request(method.clone(), &url)
+            .headers(headers)
+            .body(body_bytes.clone());
 
-    tracing::debug!(
-        "Forwarding request to z.ai (len: {} bytes): {}",
-        body_len,
-        url
-    );
+        let resp = match req.send().await {
+            Ok(r) => r,
+            Err(e) => {
+                // 网络级失败与具体 Key 无关：不更新状态机，直接上抛
+                return (
+                    StatusCode::BAD_GATEWAY,
+                    format!("Upstream request failed: {}", e),
+                )
+                    .into_response();
+            }
+        };
 
-    let req = client
-        .request(method, &url)
-        .headers(headers)
-        .body(body_bytes); // Use .body(Vec<u8>) instead of .json()
+        let status_u16 = resp.status().as_u16();
 
-    let resp = match req.send().await {
-        Ok(r) => r,
-        Err(e) => {
-            return (
-                StatusCode::BAD_GATEWAY,
-                format!("Upstream request failed: {}", e),
-            )
-                .into_response();
+        // 成功（<400）：状态机清瞬时标记，流式透传（覆盖 SSE 与非 SSE）
+        if status_u16 < 400 {
+            pool.report_success(&zai, &selected.key);
+            let status = StatusCode::from_u16(status_u16).unwrap_or(StatusCode::BAD_GATEWAY);
+            let mut out = Response::builder().status(status);
+            if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
+                out = out.header(header::CONTENT_TYPE, ct.clone());
+            }
+            let stream = resp.bytes_stream().map(|chunk| match chunk {
+                Ok(b) => Ok::<Bytes, std::io::Error>(b),
+                Err(e) => Ok(Bytes::from(format!("Upstream stream error: {}", e))),
+            });
+            return out.body(Body::from_stream(stream)).unwrap_or_else(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Failed to build response",
+                )
+                    .into_response()
+            });
         }
-    };
 
-    let status = StatusCode::from_u16(resp.status().as_u16()).unwrap_or(StatusCode::BAD_GATEWAY);
+        // 错误路径：读取错误体（响应尚未下发客户端，可安全失败转移）
+        let retry_after_header = resp
+            .headers()
+            .get(header::RETRY_AFTER)
+            .and_then(|v| v.to_str().ok())
+            .map(|s| s.to_string());
+        let content_type = resp.headers().get(header::CONTENT_TYPE).cloned();
+        let error_body = resp.text().await.unwrap_or_default();
+        let classification = pool.classify_and_report(
+            &zai,
+            &selected.key,
+            status_u16,
+            retry_after_header.as_deref(),
+            &error_body,
+        );
 
-    let mut out = Response::builder().status(status);
-    if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
-        out = out.header(header::CONTENT_TYPE, ct.clone());
+        let account_level = ZaiKeyPool::should_failover(&classification);
+        tracing::warn!(
+            "[zcode T1] z.ai key {} got {} (classification: {:?}), account-level failover: {}",
+            selected.masked_key,
+            status_u16,
+            classification,
+            account_level
+        );
+        if account_level && attempt + 1 < max_attempts {
+            // 账号级失败：该 Key 已被标记并在后续选择中被跳过，原地换下一个可用 Key
+            continue;
+        }
+
+        // 请求级错误 / 尝试耗尽：原样透传上游错误
+        let status = StatusCode::from_u16(status_u16).unwrap_or(StatusCode::BAD_GATEWAY);
+        let mut out = Response::builder().status(status);
+        if let Some(ct) = content_type {
+            out = out.header(header::CONTENT_TYPE, ct);
+        }
+        return out.body(Body::from(error_body)).unwrap_or_else(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to build response",
+            )
+                .into_response()
+        });
     }
 
-    // Stream response body to the client (covers SSE and non-SSE).
-    let stream = resp.bytes_stream().map(|chunk| match chunk {
-        Ok(b) => Ok::<Bytes, std::io::Error>(b),
-        Err(e) => Ok(Bytes::from(format!("Upstream stream error: {}", e))),
-    });
-
-    out.body(Body::from_stream(stream)).unwrap_or_else(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Failed to build response",
-        )
-            .into_response()
-    })
+    // 循环每一支都会 return；此分支仅为类型完备
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        "Failed to build response",
+    )
+        .into_response()
 }

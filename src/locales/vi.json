@@ -790,6 +790,21 @@
         "api_key_tooltip": "API key để xác thực với z.ai. Lưu cục bộ và cần thiết cho tính năng z.ai và MCP.",
         "api_key_placeholder": "Dán API key z.ai của bạn vào đây",
         "warning": "Lưu ý: Key này được lưu cục bộ trong thư mục dữ liệu ứng dụng.",
+        "keys": {
+            "title": "Nhóm API Key",
+            "title_tooltip": "Cấu hình nhiều API key z.ai / bigmodel thành nhóm vòng lặp: mỗi key khả dụng chiếm một slot; 401/403 đánh dấu vô hiệu và bỏ qua, 402 là cạn kiệt, 429 giới hạn theo Retry-After, 5xx nghỉ ngắn.",
+            "add": "Thêm key",
+            "provider": "Nhà cung cấp",
+            "provider_zai": "z.ai",
+            "provider_bigmodel": "BigModel",
+            "empty_hint": "Chưa cấu hình key nào. Thêm nhiều key để tạo nhóm vòng lặp và chuyển dự phòng.",
+            "refresh_status": "Làm mới trạng thái",
+            "status_active": "Khả dụng",
+            "status_invalid": "Vô hiệu",
+            "status_exhausted": "Cạn kiệt",
+            "status_rate_limited": "Bị giới hạn",
+            "status_cooldown": "Đang nghỉ"
+        },
         "models": {
           "title": "Ánh xạ Model",
           "title_tooltip": "Lấy danh sách model ID z.ai khả dụng và cấu hình cách dịch tên model Claude đầu vào sang model z.ai.",

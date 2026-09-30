@@ -438,14 +438,70 @@ impl Default for ZaiMcpConfig {
     }
 }
 
+/// zcode T1：Anthropic 兼容上游家族。
+/// 单一真相源：provider → 规范 base URL（对齐提案 §6.2 常量收口纪律）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ZaiProvider {
+    /// Z.AI 主站（api.z.ai）
+    Zai,
+    /// 智谱 BigModel 开放平台（open.bigmodel.cn）
+    BigModel,
+}
+
+impl Default for ZaiProvider {
+    fn default() -> Self {
+        Self::Zai
+    }
+}
+
+impl ZaiProvider {
+    /// 该上游家族的规范 Anthropic 兼容 base URL。
+    pub fn canonical_base_url(&self) -> &'static str {
+        match self {
+            ZaiProvider::Zai => "https://api.z.ai/api/anthropic",
+            ZaiProvider::BigModel => "https://open.bigmodel.cn/api/anthropic",
+        }
+    }
+
+    /// 迁移用：从遗留全局 base_url 推断 provider（无法识别时视为 z.ai / 自定义网关）。
+    pub fn infer_from_base_url(base_url: &str) -> Self {
+        if base_url.to_lowercase().contains("open.bigmodel.cn") {
+            Self::BigModel
+        } else {
+            Self::Zai
+        }
+    }
+}
+
+/// zcode T1：Key 池中的单个 API Key 条目（T2 将扩展 mode: jwt|apiKey）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ZaiKeyEntry {
+    /// 上游 API Key 原文（仅本地存储，永不注入上游日志或回显）。
+    pub key: String,
+    /// 该 Key 所属的上游家族（决定规范 base URL）。
+    #[serde(default)]
+    pub provider: ZaiProvider,
+    /// 是否参与调度。
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+    /// 可选备注（仅本地展示）。
+    #[serde(default)]
+    pub label: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZaiConfig {
     #[serde(default)]
     pub enabled: bool,
     #[serde(default = "default_zai_base_url")]
     pub base_url: String,
+    /// 遗留单 Key 字段：仅为旧配置迁移兼容保留（zcode T1），新配置一律使用 `keys`。
     #[serde(default)]
     pub api_key: String,
+    /// zcode T1：API Key 池。非空时优先于遗留 `api_key` 生效。
+    #[serde(default)]
+    pub keys: Vec<ZaiKeyEntry>,
     #[serde(default)]
     pub dispatch_mode: ZaiDispatchMode,
     /// Optional per-model mapping overrides for Anthropic/Claude model ids.
@@ -464,12 +520,85 @@ impl Default for ZaiConfig {
             enabled: false,
             base_url: default_zai_base_url(),
             api_key: String::new(),
+            keys: Vec::new(),
             dispatch_mode: ZaiDispatchMode::Off,
             model_mapping: HashMap::new(),
             models: ZaiModelDefaults::default(),
             mcp: ZaiMcpConfig::default(),
         }
     }
+}
+
+impl ZaiConfig {
+    /// 解析后的有效 Key 列表（zcode T1 迁移兼容，提案 A2）：
+    /// - `keys` 非空 → 直接生效，遗留 `api_key` 忽略；
+    /// - 否则遗留单 `api_key` 迁移为单条目，provider 从 `base_url` 推断。
+    pub fn resolved_keys(&self) -> Vec<ZaiKeyEntry> {
+        if !self.keys.is_empty() {
+            return self.keys.clone();
+        }
+        let legacy = self.api_key.trim();
+        if legacy.is_empty() {
+            return Vec::new();
+        }
+        vec![ZaiKeyEntry {
+            key: legacy.to_string(),
+            provider: ZaiProvider::infer_from_base_url(&self.base_url),
+            enabled: true,
+            label: String::new(),
+        }]
+    }
+
+    /// 首个启用且非空的 Key：供 MCP / Vision / 模型拉取等辅助通道使用
+    /// （辅助通道为 z.ai 域名专属端点，不参与轮询，仅跟随池内首个可用 Key）。
+    pub fn primary_api_key(&self) -> Option<ZaiKeyEntry> {
+        self.resolved_keys()
+            .into_iter()
+            .find(|e| e.enabled && !e.key.trim().is_empty())
+    }
+
+    /// 请求实际使用的 base URL：
+    /// - 全局 `base_url` 缺省或为任一规范地址 → 使用条目 provider 的规范地址；
+    /// - 全局 `base_url` 为自定义网关 → 覆盖所有条目（高级逃生通道，行为与 T1 前一致）。
+    pub fn effective_base_url(entry_provider: ZaiProvider, global_base_url: &str) -> String {
+        let bu = global_base_url.trim().trim_end_matches('/');
+        if bu.is_empty()
+            || bu == ZaiProvider::Zai.canonical_base_url()
+            || bu == ZaiProvider::BigModel.canonical_base_url()
+        {
+            entry_provider.canonical_base_url().to_string()
+        } else {
+            bu.to_string()
+        }
+    }
+}
+
+/// zcode T1 headless parity：解析 `ABV_ZAI_KEYS`/`ZAI_KEYS` 环境变量。
+/// 语法：逗号/分号/换行分隔；每条可带 `zai:` 或 `bigmodel:` 前缀指定上游家族（缺省 z.ai）。
+pub fn parse_zai_keys_env(raw: &str) -> Vec<ZaiKeyEntry> {
+    raw.split([',', ';', '\n', '\r'])
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(|s| {
+            let (provider, key) = if let Some(rest) = s
+                .strip_prefix("bigmodel:")
+                .or_else(|| s.strip_prefix("BIGMODEL:"))
+            {
+                (ZaiProvider::BigModel, rest.trim())
+            } else if let Some(rest) = s.strip_prefix("zai:").or_else(|| s.strip_prefix("ZAI:")) {
+                (ZaiProvider::Zai, rest.trim())
+            } else {
+                (ZaiProvider::Zai, s)
+            };
+            ZaiKeyEntry {
+                key: key.to_string(),
+                provider,
+                enabled: true,
+                label: String::new(),
+            }
+        })
+        .filter(|e| !e.key.is_empty())
+        .collect()
 }
 
 /// 实验性功能配置 (Feature Flags)
