@@ -28,7 +28,7 @@
 
 | 事实 | 值 |
 |---|---|
-| 登录 init | `POST https://zcode.z.ai/api/v1/oauth/cli/init`，`Authorization: Bearer <poll_token>`，body `{"provider":"zai"}` → `data{flow_id, authorize_url, expires_at, poll_interval_sec}` |
+| 登录 init | 双形态自适应（真机校正 2025-09-30 实测）：**新协议**——`POST https://zcode.z.ai/api/v1/oauth/cli/init` 不带认证头，响应 `data{flow_id, authorize_url, expires_at, poll_interval_sec, poll_token(服务端下发)}`；**旧协议兼容**（ZCode 3.10.1 事实）——init 带 `Authorization: Bearer <本地 poll_token>`，响应无 poll_token。新形态无认证头失败时自动回退旧形态。实测旧形态 Bearer 本地 token 被服务端拒（`3004 invalid_flow`：服务端把 Bearer 校验为 flow 引用） |
 | 登录 poll | `GET https://zcode.z.ai/api/v1/oauth/cli/poll/{flow_id}`（Bearer poll_token）→ pending：`data.status="pending"`；ready：`data.status="ready"` + `data.token`（zcode JWT）+ `data.zai.access_token` + `data.user` |
 | 会话过期 | body `code=3004` / HTTP 404|410 / 本地 300s 兜底 → 过期，前端提示重新发起 |
 | 业务 JWT | `POST https://api.z.ai/api/auth/z/login`，body `{"token":<zai access_token>}` → `data.access_token`（仅管理面：billing/开钥；绝不用于消息转发） |

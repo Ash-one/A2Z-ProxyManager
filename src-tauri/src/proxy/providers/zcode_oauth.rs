@@ -300,14 +300,16 @@ async fn api_json(
     client: &reqwest::Client,
     method: reqwest::Method,
     url: &str,
-    bearer: &str,
+    bearer: Option<&str>,
     json_body: Option<Value>,
 ) -> Result<Value, String> {
     let mut req = client
         .request(method, url)
-        .header("Authorization", format!("Bearer {bearer}"))
         .header("Content-Type", "application/json")
         .header("accept", "application/json");
+    if let Some(b) = bearer {
+        req = req.header("Authorization", format!("Bearer {b}"));
+    }
     if let Some(b) = json_body {
         req = req.json(&b);
     }
@@ -339,8 +341,11 @@ async fn api_json(
     Ok(body)
 }
 
-/// 发起登录流程：本地生成 poll_token（32 hex，兼容旧协议）；
-/// init 响应若含服务端下发 poll_token 则优先采用。
+/// 发起登录流程（双协议形态自适应，均为协议事实）：
+/// 1. 新协议（服务端下发 poll_token）：init 不带认证头，响应 data 内含 poll_token；
+///    服务端把 Bearer 校验为 flow 引用，本地随机 token 会被拒（实测 `3004 invalid_flow`）。
+/// 2. 旧协议兼容（ZCode 3.10.1 事实）：init 带 `Authorization: Bearer <本地 poll_token>`，
+///    响应无 poll_token，轮询沿用本地 token。
 pub async fn oauth_start(
     upstream_proxy: &UpstreamProxyConfig,
     request_timeout: u64,
@@ -348,14 +353,37 @@ pub async fn oauth_start(
     let client = build_http_client(upstream_proxy, request_timeout)?;
     let local_poll_token = uuid::Uuid::new_v4().simple().to_string();
     let url = format!("{ZCODE_BASE_URL}/api/v1/oauth/cli/init");
-    let body = api_json(
+    let payload = serde_json::json!({ "provider": "zai" });
+
+    let init = api_json(
         &client,
         reqwest::Method::POST,
         &url,
-        &local_poll_token,
-        Some(serde_json::json!({ "provider": "zai" })),
+        None,
+        Some(payload.clone()),
     )
-    .await?;
+    .await;
+    let (body, fallback_token) = match init {
+        Ok(b) => (b, None),
+        Err(new_protocol_err) => {
+            let legacy = api_json(
+                &client,
+                reqwest::Method::POST,
+                &url,
+                Some(&local_poll_token),
+                Some(payload),
+            )
+            .await;
+            match legacy {
+                Ok(b) => (b, Some(local_poll_token.clone())),
+                Err(legacy_err) => {
+                    return Err(format!(
+                        "OAuth init failed (server-issued poll_token form: {new_protocol_err}; legacy local-poll_token form: {legacy_err})"
+                    ))
+                }
+            }
+        }
+    };
     let data = body
         .get("data")
         .cloned()
@@ -370,11 +398,16 @@ pub async fn oauth_start(
         .or_else(|| data.get("authorizeUrl"))
         .and_then(value_to_clean_string)
         .ok_or("OAuth init response missing authorize_url")?;
+    // 轮询凭证：服务端下发优先（新协议）；旧协议回退形态下沿用本地 token；
+    // 新形态但响应缺失 poll_token → schema 漂移，明确报错（本地 token 此时无效）
     let poll_token = data
         .get("poll_token")
         .or_else(|| data.get("pollToken"))
         .and_then(value_to_clean_string)
-        .unwrap_or(local_poll_token);
+        .or_else(|| fallback_token.clone())
+        .ok_or_else(|| {
+            "OAuth init succeeded (server-issued form) but response missing poll_token; cannot poll — please report this response shape".to_string()
+        })?;
     let poll_interval_secs = data
         .get("poll_interval_sec")
         .or_else(|| data.get("pollIntervalSec"))
@@ -490,7 +523,7 @@ pub async fn complete_login(
             &client,
             reqwest::Method::POST,
             &url,
-            "",
+            None,
             Some(serde_json::json!({ "token": zai_access_token })),
         )
         .await
@@ -534,14 +567,28 @@ async fn provision_api_key(client: &reqwest::Client, business_jwt: &str) -> Resu
 
     // 1. org/project
     let info_url = format!("{APIZ_BASE_URL}/api/biz/customer/getCustomerInfo");
-    let info = api_json(client, reqwest::Method::GET, &info_url, business_jwt, None).await?;
+    let info = api_json(
+        client,
+        reqwest::Method::GET,
+        &info_url,
+        Some(business_jwt),
+        None,
+    )
+    .await?;
     let (org_id, project_id) = extract_org_project(&info)
         .ok_or("getCustomerInfo 响应中未识别出 organization/project（schema 未文档化）")?;
 
     // 2. 复用既有 zcode-api-key，否则创建
     let list_url =
         format!("{APIZ_BASE_URL}/api/biz/v1/organization/{org_id}/projects/{project_id}/api_keys");
-    let list = api_json(client, reqwest::Method::GET, &list_url, business_jwt, None).await?;
+    let list = api_json(
+        client,
+        reqwest::Method::GET,
+        &list_url,
+        Some(business_jwt),
+        None,
+    )
+    .await?;
     let api_key = match extract_existing_api_key(&list) {
         Some(k) => k,
         None => {
@@ -549,7 +596,7 @@ async fn provision_api_key(client: &reqwest::Client, business_jwt: &str) -> Resu
                 client,
                 reqwest::Method::POST,
                 &list_url,
-                business_jwt,
+                Some(business_jwt),
                 Some(serde_json::json!({ "name": OAUTH_KEY_NAME })),
             )
             .await?;
@@ -560,7 +607,14 @@ async fn provision_api_key(client: &reqwest::Client, business_jwt: &str) -> Resu
 
     // 3. secretKey → 最终 Key = "{apiKey}.{secretKey}"
     let copy_url = format!("{list_url}/copy/{api_key}");
-    let copy = api_json(client, reqwest::Method::GET, &copy_url, business_jwt, None).await?;
+    let copy = api_json(
+        client,
+        reqwest::Method::GET,
+        &copy_url,
+        Some(business_jwt),
+        None,
+    )
+    .await?;
     let secret = extract_secret_key(&copy)
         .ok_or("api_keys/copy 响应中未识别出 secretKey（schema 未文档化）")?;
     Ok(format!("{api_key}.{secret}"))
@@ -577,7 +631,14 @@ pub async fn query_subscription(
     }
     let client = build_http_client(upstream_proxy, request_timeout)?;
     let url = format!("{APIZ_BASE_URL}/api/biz/subscription/list");
-    let body = api_json(&client, reqwest::Method::GET, &url, business_jwt, None).await?;
+    let body = api_json(
+        &client,
+        reqwest::Method::GET,
+        &url,
+        Some(business_jwt),
+        None,
+    )
+    .await?;
     Ok(body.get("data").cloned().unwrap_or(serde_json::Value::Null))
 }
 
