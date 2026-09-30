@@ -28,11 +28,11 @@
 
 | 事实 | 值 |
 |---|---|
-| 登录 init | 双形态自适应（真机校正 2025-09-30 实测）：**新协议**——`POST https://zcode.z.ai/api/v1/oauth/cli/init` 不带认证头，响应 `data{flow_id, authorize_url, expires_at, poll_interval_sec, poll_token(服务端下发)}`；**旧协议兼容**（ZCode 3.10.1 事实）——init 带 `Authorization: Bearer <本地 poll_token>`，响应无 poll_token。新形态无认证头失败时自动回退旧形态。实测旧形态 Bearer 本地 token 被服务端拒（`3004 invalid_flow`：服务端把 Bearer 校验为 flow 引用） |
-| 登录 poll | `GET https://zcode.z.ai/api/v1/oauth/cli/poll/{flow_id}`（Bearer poll_token）→ pending：`data.status="pending"`；ready：`data.status="ready"` + `data.token`（zcode JWT）+ `data.zai.access_token` + `data.user` |
+| 登录 init | 双形态自适应（真机实测两轮校正）：请求形态为 `POST https://zcode.z.ai/api/v1/oauth/cli/init` + `Authorization: Bearer <poll_token>` + `Content-Type: application/json` + body `{"provider":"zai"}`（官方 CLI 规范，对齐 zcode.cjs `createZaiCliOAuthClient`：**仅此两头，无任何浏览器伪装头**）。poll_token 为 **64 位 hex**（官方 `randomBytes(32).toString("hex")`；**实测 32 位 hex 被服务端判 `3004 invalid_flow`**——服务端将 Bearer 校验为 flow 引用含格式校验）；响应 `data{flow_id, authorize_url, poll_token?}`，2026-09 新协议服务端下发 poll_token 时 poll 必须采用，未下发回落本地值。实现先按官方形态发起，失败自动尝试无认证头变体 |
+| 登录 poll | `GET https://zcode.z.ai/api/v1/oauth/cli/poll/{flow_id}`（Bearer poll_token）→ pending：`data.status="pending"`；ready：`data.status="ready"` + 产物（`data.token`/`data.accessToken`/`data.zcodejwttoken` 视返回结构）+ `data.zai.access_token` + `data.user`；**4xx 承载 code=3004 → 会话过期重新发起，其余 4xx → 终态失败** |
 | 会话过期 | body `code=3004` / HTTP 404|410 / 本地 300s 兜底 → 过期，前端提示重新发起 |
 | 业务 JWT | `POST https://api.z.ai/api/auth/z/login`，body `{"token":<zai access_token>}` → `data.access_token`（仅管理面：billing/开钥；绝不用于消息转发） |
-| 开钥链 | `GET /api/biz/customer/getCustomerInfo` → org+project；`GET/POST /api/biz/v1/organization/{org}/projects/{proj}/api_keys`（复用名为 `zcode-api-key` 的既有 Key）；`GET .../api_keys/copy/{apiKey}` → secretKey；最终 `{apiKey}.{secretKey}` |
+| 开钥链 | `GET /api/biz/customer/getCustomerInfo` → `data.organizations[]`（`organizationId`/`organizationName`，默认机构优先）内嵌 `projects[]`（`projectId`/`projectName`，默认项目优先）；`GET/POST /api/biz/v1/organization/{org}/projects/{proj}/api_keys`（`data` 为数组，条目字段 `apiKey`/`name`；复用名为 `zcode-api-key` 的既有 Key）；`GET .../api_keys/copy/{apiKey}` → secretKey；最终 `{apiKey}.{secretKey}` |
 | 订阅查询 | `GET https://api.z.ai/api/biz/subscription/list`（Bearer 业务 JWT）；响应结构未公开文档化 → data 原样透传 |
 | 通道模型 | API Key（含订阅开通 Key）→ `api.z.ai` 直连，免验证码；Plan JWT → `zcode.z.ai` 通道，每请求 `X-Aliyun-Captcha-Verify-Param`（T3 范围） |
 

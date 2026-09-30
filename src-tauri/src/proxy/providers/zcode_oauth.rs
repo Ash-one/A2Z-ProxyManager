@@ -127,33 +127,53 @@ fn first_string_field(obj: &Value, keys: &[&str]) -> Option<String> {
 }
 
 /// 从 getCustomerInfo 响应容错提取 (org_id, project_id)。
-/// 覆盖已知的常见形态：嵌套 org 数组带 projects、平铺 id 字段、data 包装差异。
+/// 协议事实（参考实现确认）：`data.organizations[]`，org 字段 `organizationId`/
+/// `organizationName`，内嵌 `projects[]`（`projectId`/`projectName`）；
+/// 优先"默认机构"/"默认项目"，否则取首个；另保留平铺 id 字段等兜底形态。
 pub fn extract_org_project(body: &Value) -> Option<(String, String)> {
     let data = body.get("data").filter(|d| !d.is_null()).unwrap_or(body);
 
-    // 形态 A：data.organizations|orgs[] 数组，每项含 id 与 projects[]
-    for org_list_key in ["organizations", "orgs", "organization_list"] {
-        if let Some(list) = data.get(org_list_key).and_then(|v| v.as_array()) {
-            for org in list {
-                if let Some(org_id) = first_string_field(org, &["id", "orgId", "org_id", "uuid"]) {
-                    for proj_key in ["projects", "project_list"] {
-                        if let Some(projects) = org.get(proj_key).and_then(|v| v.as_array()) {
-                            for proj in projects {
-                                if let Some(proj_id) = first_string_field(
-                                    proj,
-                                    &["id", "projectId", "project_id", "proj_id", "uuid"],
-                                ) {
-                                    return Some((org_id, proj_id));
-                                }
-                            }
-                        }
-                    }
-                    // org 无内嵌 projects：项目可能平铺在 data 顶层
-                    if let Some(proj_id) =
-                        first_string_field(data, &["project_id", "projectId", "proj_id"])
-                    {
+    // 形态 A：data.organizations[] 数组，每项含 organizationId 与 projects[]
+    if let Some(list) = data.get("organizations").and_then(|v| v.as_array()) {
+        // "默认机构"优先（参考实现同语义），否则首个
+        let org = list
+            .iter()
+            .find(|o| {
+                o.get("organizationName")
+                    .and_then(|n| n.as_str())
+                    .map(|n| n.contains("默认"))
+                    .unwrap_or(false)
+            })
+            .or_else(|| list.first());
+        if let Some(org) = org {
+            if let Some(org_id) =
+                first_string_field(org, &["organizationId", "id", "orgId", "org_id", "uuid"])
+            {
+                let projects = org.get("projects").and_then(|v| v.as_array());
+                let proj = projects.and_then(|projects| {
+                    projects
+                        .iter()
+                        .find(|p| {
+                            p.get("projectName")
+                                .and_then(|n| n.as_str())
+                                .map(|n| n.contains("默认"))
+                                .unwrap_or(false)
+                        })
+                        .or_else(|| projects.first())
+                });
+                if let Some(proj) = proj {
+                    if let Some(proj_id) = first_string_field(
+                        proj,
+                        &["projectId", "id", "project_id", "proj_id", "uuid"],
+                    ) {
                         return Some((org_id, proj_id));
                     }
+                }
+                // org 无内嵌 projects：项目可能平铺在 data 顶层
+                if let Some(proj_id) =
+                    first_string_field(data, &["project_id", "projectId", "proj_id"])
+                {
+                    return Some((org_id, proj_id));
                 }
             }
         }
@@ -284,8 +304,11 @@ fn build_http_client(
     upstream_proxy: &UpstreamProxyConfig,
     request_timeout: u64,
 ) -> Result<reqwest::Client, String> {
-    let mut builder =
-        reqwest::Client::builder().timeout(std::time::Duration::from_secs(request_timeout.max(10)));
+    // OAuth/管理面对齐官方 CLI wire 形态（zcode.cjs createZaiCliOAuthClient /
+    // 参考实现 httpx）：HTTP/1.1、无浏览器伪装头；仅应用层自定义头。
+    let mut builder = reqwest::Client::builder()
+        .http1_only()
+        .timeout(std::time::Duration::from_secs(request_timeout.max(10)));
     if upstream_proxy.enabled && !upstream_proxy.url.is_empty() {
         let proxy = reqwest::Proxy::all(&upstream_proxy.url)
             .map_err(|e| format!("Invalid upstream proxy url: {}", e))?;
@@ -294,6 +317,14 @@ fn build_http_client(
     builder
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {}", e))
+}
+
+/// 本地 poll_token：64 位 hex（对齐官方 CLI `randomBytes(32).toString("hex")`
+/// 与参考实现 `secrets.token_hex(32)`；实测 32 位 hex 被服务端判 `invalid_flow`）。
+fn generate_local_poll_token() -> String {
+    let a = uuid::Uuid::new_v4().simple();
+    let b = uuid::Uuid::new_v4().simple();
+    format!("{a}{b}")
 }
 
 async fn api_json(
@@ -305,8 +336,7 @@ async fn api_json(
 ) -> Result<Value, String> {
     let mut req = client
         .request(method, url)
-        .header("Content-Type", "application/json")
-        .header("accept", "application/json");
+        .header("Content-Type", "application/json");
     if let Some(b) = bearer {
         req = req.header("Authorization", format!("Bearer {b}"));
     }
@@ -351,7 +381,7 @@ pub async fn oauth_start(
     request_timeout: u64,
 ) -> Result<ZcodeOauthFlow, String> {
     let client = build_http_client(upstream_proxy, request_timeout)?;
-    let local_poll_token = uuid::Uuid::new_v4().simple().to_string();
+    let local_poll_token = generate_local_poll_token();
     let url = format!("{ZCODE_BASE_URL}/api/v1/oauth/cli/init");
     let payload = serde_json::json!({ "provider": "zai" });
 
@@ -442,7 +472,6 @@ pub async fn oauth_poll_once(
     let send = client
         .get(&url)
         .header("Authorization", format!("Bearer {}", flow.poll_token))
-        .header("accept", "application/json")
         .send()
         .await;
     let resp = match send {
@@ -454,14 +483,22 @@ pub async fn oauth_poll_once(
         .text()
         .await
         .map_err(|e| format!("Failed to read response: {}", e))?;
-    if status.as_u16() == 404 || status.as_u16() == 410 {
-        return Ok(ZcodePollOutcome::Expired);
-    }
     let body: Value = serde_json::from_str(&text)
         .map_err(|_| format!("OAuth poll returned non-JSON response (HTTP {status})"))?;
     let (code, data, _) = split_envelope(&body);
+    // 协议事实：poll 4xx 承载 code=3004 → 会话过期（重新发起）；其余 4xx → 终态失败
     if code == Some(OAUTH_SESSION_EXPIRED_CODE) {
         return Ok(ZcodePollOutcome::Expired);
+    }
+    if status.is_client_error() {
+        return Err(format!(
+            "OAuth poll failed (HTTP {}, code {:?})",
+            status.as_u16(),
+            code
+        ));
+    }
+    if !status.is_success() {
+        return Ok(ZcodePollOutcome::Pending); // 5xx 视为上游抖动，继续轮询
     }
     let data = data.cloned().ok_or("OAuth poll response missing data")?;
     let flow_status = data
@@ -470,13 +507,18 @@ pub async fn oauth_poll_once(
         .unwrap_or("pending");
     match flow_status {
         "ready" => {
+            // 协议事实：ready 产物字段两种结构——data.token / data.accessToken，
+            // zai access_token 在 data.zai.access_token；zcode JWT 亦可能为 zcodejwttoken
             let zcode_jwt = data
                 .get("token")
+                .or_else(|| data.get("accessToken"))
+                .or_else(|| data.get("zcodejwttoken"))
                 .and_then(value_to_clean_string)
                 .ok_or("OAuth poll ready response missing token")?;
             let zai_access_token = data
                 .get("zai")
                 .and_then(|z| z.get("access_token"))
+                .or_else(|| data.get("zaiAccessToken"))
                 .and_then(value_to_clean_string)
                 .unwrap_or_default();
             let (account_id, user_email) = data
@@ -705,6 +747,43 @@ mod tests {
             extract_org_project(&body),
             Some(("org-1".into(), "proj-1".into()))
         );
+    }
+
+    #[test]
+    fn org_project_from_confirmed_real_shape() {
+        // 协议事实（参考实现确认）：organizations[].organizationId + projects[].projectId
+        let body = json!({
+            "code": 0,
+            "data": {"organizations": [
+                {"organizationId": "orgA", "organizationName": "测试机构",
+                 "projects": [{"projectId": "projA", "projectName": "测试项目"}]},
+                {"organizationId": "orgB", "organizationName": "默认机构",
+                 "projects": [{"projectId": "projB", "projectName": "默认项目"}]}
+            ]}
+        });
+        assert_eq!(
+            extract_org_project(&body),
+            Some(("orgB".into(), "projB".into()))
+        );
+    }
+
+    #[test]
+    fn local_poll_token_is_64_hex() {
+        // 服务端把 Bearer 当 flow 引用做格式校验：须为 64 位 hex
+        // （32 位 hex 实测被判 invalid_flow）
+        let t = generate_local_poll_token();
+        assert_eq!(t.len(), 64);
+        assert!(t.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn existing_key_found_by_real_field_name() {
+        // 协议事实：api_keys 条目的 Key 字段为 apiKey
+        let body = json!({"code": 0, "data": [
+            {"name": "other", "apiKey": "aaa.bbb"},
+            {"name": "zcode-api-key", "apiKey": "id1.secret1"}
+        ]});
+        assert_eq!(extract_existing_api_key(&body), Some("id1.secret1".into()));
     }
 
     #[test]
