@@ -234,21 +234,22 @@ pub async fn forward_anthropic_json(
             &selected.account_id,
             &selected.key,
         );
+        let mut plan_captcha_param: Option<String> = None;
 
         let (url, slot_headers, slot_body_bytes) = if is_plan {
             use crate::proxy::providers::zcode_plan as zplan;
             let captcha = match zplan::ZcodeCaptchaStore::global().take_fresh(&plan_captcha_key) {
                 Some(c) => Some(c),
                 None => {
-                    // 无新鲜验证码：标记 CaptchaNeeded 并派发求解事件，等待前端无痕解算提交（最多等待 8 秒）
+                    // 无新鲜验证码：标记 CaptchaNeeded 并派发求解事件，等待前端无痕解算提交（最多等待 15 秒）
                     pool.mark_captcha_needed(&zai, &selected.key);
                     zplan::emit_captcha_needed_event(&selected.account_id, &selected.key);
                     tracing::info!(
-                        "[zcode T3] plan slot {} waiting for fresh captcha (up to 8s)...",
+                        "[zcode T3] plan slot {} waiting for fresh captcha (up to 15s)...",
                         selected.masked_key
                     );
                     zplan::ZcodeCaptchaStore::global()
-                        .wait_fresh(&plan_captcha_key, std::time::Duration::from_secs(8))
+                        .wait_fresh(&plan_captcha_key, std::time::Duration::from_secs(15))
                         .await
                 }
             };
@@ -261,6 +262,7 @@ pub async fn forward_anthropic_json(
                 continue;
             };
 
+            plan_captcha_param = Some(captcha.param.clone());
             // 成功取得新鲜验证码后恢复为 Active
             pool.clear_captcha_needed(&zai, &plan_captcha_key);
             let profile = zplan::profile_for_parts(
@@ -385,11 +387,12 @@ pub async fn forward_anthropic_json(
             // 402 → 30 分钟耗尽窗，429 → 300s，401/403 → 凭证失效
             let challenge = zplan::challenge_header_present(&header_names);
             let failure = zplan::classify_plan_failure(status_u16, &error_body, challenge);
-            let failure = pool.classify_plan_and_report(
+            let failure = pool.classify_plan_and_report_with_param(
                 &zai,
                 &selected.key,
                 failure,
                 retry_after_header.as_deref(),
+                plan_captcha_param.as_deref(),
             );
             let level = failure.should_failover();
             (level, format!("plan:{failure:?}"))

@@ -369,12 +369,17 @@ impl ZaiKeyPool {
     /// - Transient → Cooldown（短冷却）
     /// - RequestLevel → 不改变 Key 状态
     /// 返回分类供调用方做失败转移决策。
-    pub fn classify_plan_and_report(
+    /// 分类并上报一次 Plan 通道失败尝试（携带触发失败的具体验证码参数）。
+    /// 状态机映射：
+    /// - CaptchaChallenge（3007/403+captcha）→ 精准作废该验证码；若缓冲池仍有其他新鲜 Token 则保留 Active
+    ///   以便在当前请求内瞬间完成重试，仅当缓冲池耗尽时才置为 CaptchaNeeded。
+    pub fn classify_plan_and_report_with_param(
         &self,
         zai: &ZaiConfig,
         key: &str,
         failure: crate::proxy::providers::zcode_plan::PlanFailure,
         retry_after_header: Option<&str>,
+        failed_param: Option<&str>,
     ) -> crate::proxy::providers::zcode_plan::PlanFailure {
         use crate::proxy::providers::zcode_plan::{PlanFailure, ZcodeCaptchaStore};
         self.sync_if_needed(zai);
@@ -386,17 +391,36 @@ impl ZaiKeyPool {
         if let Some(entry) = guard.entries.iter_mut().find(|e| e.cfg.key == key) {
             let next = match failure {
                 PlanFailure::CaptchaChallenge => {
-                    ZcodeCaptchaStore::global().invalidate(
-                        &crate::proxy::providers::zcode_plan::captcha_key_for(
-                            &entry.cfg.account_id,
-                            &entry.cfg.key,
-                        ),
+                    let captcha_key = crate::proxy::providers::zcode_plan::captcha_key_for(
+                        &entry.cfg.account_id,
+                        &entry.cfg.key,
                     );
-                    Some((
-                        ZaiKeyStatus::CaptchaNeeded,
-                        None,
-                        "captcha challenge (3007)".to_string(),
-                    ))
+                    let has_remaining = if let Some(param) = failed_param {
+                        ZcodeCaptchaStore::global().invalidate_param(&captcha_key, param)
+                    } else {
+                        ZcodeCaptchaStore::global().invalidate(&captcha_key);
+                        false
+                    };
+                    // 派发后台过码事件以补充缓冲池
+                    crate::proxy::providers::zcode_plan::emit_captcha_needed_event(
+                        &entry.cfg.account_id,
+                        &entry.cfg.key,
+                    );
+
+                    if has_remaining {
+                        tracing::info!(
+                            "[zcode buffer pool] Captcha token rejected, but standby token exists in buffer for slot {}",
+                            mask_key(key)
+                        );
+                        // 缓冲池尚有备用新鲜 token，保持 Active 供立即重试
+                        None
+                    } else {
+                        Some((
+                            ZaiKeyStatus::CaptchaNeeded,
+                            None,
+                            "captcha challenge (3007)".to_string(),
+                        ))
+                    }
                 }
                 PlanFailure::Exhausted => Some((
                     ZaiKeyStatus::Exhausted,
@@ -411,7 +435,7 @@ impl ZaiKeyPool {
                     Some((
                         ZaiKeyStatus::RateLimited,
                         now.checked_add(delay),
-                        format!("plan rate-limited"),
+                        "plan rate-limited".to_string(),
                     ))
                 }
                 PlanFailure::InvalidAuth => Some((
@@ -433,6 +457,18 @@ impl ZaiKeyPool {
             }
         }
         failure
+    }
+
+    /// 分类并上报一次 Plan 通道失败尝试，返回分类供调用方做失败转移决策。
+    #[allow(dead_code)]
+    pub fn classify_plan_and_report(
+        &self,
+        zai: &ZaiConfig,
+        key: &str,
+        failure: crate::proxy::providers::zcode_plan::PlanFailure,
+        retry_after_header: Option<&str>,
+    ) -> crate::proxy::providers::zcode_plan::PlanFailure {
+        self.classify_plan_and_report_with_param(zai, key, failure, retry_after_header, None)
     }
 
     /// zcode T3：标记需要过码（调度发现无新鲜验证码时）。

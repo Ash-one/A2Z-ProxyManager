@@ -7,29 +7,28 @@ import { listen } from '@tauri-apps/api/event';
 import { isTauri } from '../../utils/env';
 
 /**
- * 全局 ZCode Plan 阿里云验证码后台无痕守护器。
+ * 全局 ZCode Plan 阿里云验证码后台无痕缓冲池守护器 (Captcha Buffer Pool Daemon)。
  * 挂载于 App 顶层，全生命周期常驻：
- * 1. 定期（每 60s）在后台无痕预热刷新验证码，确保上游接口始终持有 90s 内新鲜令牌；
- * 2. 监听后端 `zcode://solve-captcha` 事件，按需被唤醒执行秒级求解；
- * 3. 轮询检测到 `CaptchaNeeded` 时自动尝试自愈求解，彻底实现全自动无感调用。
+ * 1. 预热缓冲池 (Staggered Buffer Pool)：按 40s 代际步长为每个已启用 JWT 账号自动补给新鲜 Token，
+ *    在后端形成最大容量为 3 的滑动窗口队列，确保外部请求 100% 毫秒级命中现成 Token；
+ * 2. 严格串行队列 (Serial Solver Queue)：保证同一时刻仅运行 1 个阿里 SDK 实例，杜绝并发调用碰撞；
+ * 3. 页面唤醒自愈 (Page Visibility Listener)：休眠或切回前台时主动检查并回补过期的 Token；
+ * 4. 事件驱动即时求解：监听后端 `zcode://solve-captcha` 事件，按需被唤醒毫秒级补给。
  */
 export const ZcodeCaptchaDaemon = () => {
     const { config } = useConfigStore();
-    const isSolvingRef = useRef(false);
     const lastSolvedRef = useRef<Map<string, number>>(new Map());
+    const queueRef = useRef<Promise<void>>(Promise.resolve());
     const verifyCallbackRef = useRef<((param: string) => Promise<{ captchaResult: boolean; bizResult?: boolean }>) | null>(null);
     const captchaInstanceRef = useRef<{ verify?: () => void } | null>(null);
 
+    // 单次求解核心实现
     const solveKey = async (entry: ZaiKeyEntry): Promise<boolean> => {
-        if (isSolvingRef.current) return false;
-        isSolvingRef.current = true;
-
         return new Promise<boolean>(async (resolve) => {
             let finished = false;
             const finish = (ok: boolean) => {
                 if (finished) return;
                 finished = true;
-                isSolvingRef.current = false;
                 resolve(ok);
             };
 
@@ -114,13 +113,27 @@ export const ZcodeCaptchaDaemon = () => {
         });
     };
 
-    // 1. 定期主动保活（每 60 秒检查一次是否有已启用的 JWT 条目需要刷新）
+    // 串行队列调度器：严格串行执行，避免阿里 SDK 在同一 DOM 树上发生并发竞争
+    const enqueueSolve = (entry: ZaiKeyEntry): Promise<boolean> => {
+        return new Promise<boolean>((resolve) => {
+            queueRef.current = queueRef.current
+                .then(async () => {
+                    const result = await solveKey(entry);
+                    // 每次求解后增加 1.2 秒平滑缓冲，避免连续频繁触发阿里风控
+                    await new Promise((r) => setTimeout(r, 1200));
+                    resolve(result);
+                })
+                .catch(() => {
+                    resolve(false);
+                });
+        });
+    };
+
+    // 1. 定期代际预热缓冲池 (每 10 秒轮询，距上次刷新超过 40 秒即补充新代 Token)
     useEffect(() => {
         const checkAndPrewarm = async () => {
             const zai = config?.proxy?.zai;
-            if (!zai?.enabled) return;
-
-            const jwtKeys = (zai.keys || []).filter(
+            const jwtKeys = (zai?.keys || []).filter(
                 (k) => k.enabled && k.mode === 'jwt' && k.key.trim().length > 0
             );
             if (jwtKeys.length === 0) return;
@@ -128,21 +141,29 @@ export const ZcodeCaptchaDaemon = () => {
             const now = Date.now();
             for (const key of jwtKeys) {
                 const last = lastSolvedRef.current.get(key.key) || 0;
-                // 新鲜窗是 90s，超过 60s 未刷新则主动无痕刷新
-                if (now - last > 60_000) {
-                    await solveKey(key);
-                    break; // 每次只刷新一个，避免并发竞争
+                // 新鲜窗是 90s，代际预热阈值设为 40s：在第一代 Token 寿命过半时提前产出备用 Token 入池
+                if (now - last > 40_000) {
+                    await enqueueSolve(key);
                 }
             }
         };
 
-        const timer = setInterval(checkAndPrewarm, 15_000);
-        // 初次加载延迟 2 秒后执行一次预热
+        const timer = setInterval(checkAndPrewarm, 10_000);
+        // 初次加载延迟 2 秒后执行一次预热补给
         const initialTimer = setTimeout(checkAndPrewarm, 2000);
+
+        // 页面从后台休眠唤醒或切回前台时，主动触发一次快速回补
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                checkAndPrewarm();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         return () => {
             clearInterval(timer);
             clearTimeout(initialTimer);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [config]);
 
@@ -153,17 +174,18 @@ export const ZcodeCaptchaDaemon = () => {
 
         listen<{ accountId?: string; key?: string }>('zcode://solve-captcha', async (event) => {
             const zai = config?.proxy?.zai;
-            if (!zai) return;
-            const jwtKeys = (zai.keys || []).filter(
+            const jwtKeys = (zai?.keys || []).filter(
                 (k) => k.enabled && k.mode === 'jwt' && k.key.trim().length > 0
             );
+            if (jwtKeys.length === 0) return;
+
             const target =
                 jwtKeys.find(
                     (k) => k.key === event.payload?.key || (k.account_id && k.account_id === event.payload?.accountId)
                 ) || jwtKeys[0];
 
             if (target) {
-                await solveKey(target);
+                await enqueueSolve(target);
             }
         }).then((u) => {
             unlistenFn = u;
@@ -178,9 +200,7 @@ export const ZcodeCaptchaDaemon = () => {
     useEffect(() => {
         const checkStatus = async () => {
             const zai = config?.proxy?.zai;
-            if (!zai?.enabled) return;
-
-            const jwtKeys = (zai.keys || []).filter(
+            const jwtKeys = (zai?.keys || []).filter(
                 (k) => k.enabled && k.mode === 'jwt' && k.key.trim().length > 0
             );
             if (jwtKeys.length === 0) return;
@@ -193,7 +213,7 @@ export const ZcodeCaptchaDaemon = () => {
                 if (needy) {
                     const target = jwtKeys[needy.index] || jwtKeys[0];
                     if (target) {
-                        await solveKey(target);
+                        await enqueueSolve(target);
                     }
                 }
             } catch {

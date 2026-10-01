@@ -8,7 +8,7 @@
 //! 净室声明：全部实现仅依据公开协议事实（docs/zcode/implementation-t3.md 事实表）
 //! 重写，未复制任何第三方源码。
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{OnceLock, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -344,9 +344,12 @@ pub struct CaptchaParam {
     pub issued_at_ms: u64,
 }
 
-/// 验证码参数进程内存储（前端过码组件提交 → 消息转发取用 → 3007 即失效）。
+/// 缓冲池最大容量（每个账号槽位常驻保留最多 3 个新鲜验证码）
+pub const CAPTCHA_BUFFER_CAPACITY: usize = 3;
+
+/// 验证码参数进程内缓冲池（前端过码组件提交 → 缓冲池滑动存储与复用 → 3007 挑战精准剔除）。
 pub struct ZcodeCaptchaStore {
-    inner: RwLock<HashMap<String, CaptchaParam>>,
+    inner: RwLock<HashMap<String, VecDeque<CaptchaParam>>>,
     notify: tokio::sync::Notify,
 }
 
@@ -374,14 +377,24 @@ impl ZcodeCaptchaStore {
             .inner
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        guard.insert(
-            key.to_string(),
-            CaptchaParam {
-                param,
-                region,
-                issued_at_ms: Self::now_ms(),
-            },
-        );
+        let now = Self::now_ms();
+        let deque = guard.entry(key.to_string()).or_default();
+        // 1. 淘汰已过期条目
+        deque.retain(|p| now.saturating_sub(p.issued_at_ms) < CAPTCHA_FRESH_MS);
+        // 2. 去重已存在的相同 param
+        if let Some(pos) = deque.iter().position(|p| p.param == param) {
+            deque.remove(pos);
+        }
+        // 3. 压入最新条目（队尾）
+        deque.push_back(CaptchaParam {
+            param,
+            region,
+            issued_at_ms: now,
+        });
+        // 4. 超出容量上限时淘汰最老的条目（队头）
+        while deque.len() > CAPTCHA_BUFFER_CAPACITY {
+            deque.pop_front();
+        }
         drop(guard);
         self.notify.notify_waiters();
     }
@@ -391,19 +404,49 @@ impl ZcodeCaptchaStore {
             .inner
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        guard.get(key).cloned()
+        let now = Self::now_ms();
+        guard.get(key).and_then(|deque| {
+            deque
+                .iter()
+                .rev()
+                .find(|p| now.saturating_sub(p.issued_at_ms) < CAPTCHA_FRESH_MS)
+                .cloned()
+        })
     }
 
     pub fn is_fresh(&self, key: &str) -> bool {
-        self.peek(key)
-            .map(|p| Self::now_ms().saturating_sub(p.issued_at_ms) < CAPTCHA_FRESH_MS)
-            .unwrap_or(false)
+        self.peek(key).is_some()
     }
 
-    /// 取新鲜参数（不消费：TTL 窗口内可复用于多个请求）。
+    /// 取新鲜参数（不消费：TTL 窗口内可复用于多个请求，返回最新的新鲜条目）。
     pub fn take_fresh(&self, key: &str) -> Option<CaptchaParam> {
-        self.peek(key)
-            .filter(|p| Self::now_ms().saturating_sub(p.issued_at_ms) < CAPTCHA_FRESH_MS)
+        let mut guard = self
+            .inner
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let now = Self::now_ms();
+        let deque = guard.get_mut(key)?;
+        deque.retain(|p| now.saturating_sub(p.issued_at_ms) < CAPTCHA_FRESH_MS);
+        deque.back().cloned()
+    }
+
+    /// 统计指定 key 下当前存活的新鲜验证码数量
+    #[allow(dead_code)]
+    pub fn count_fresh(&self, key: &str) -> usize {
+        let guard = self
+            .inner
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let now = Self::now_ms();
+        guard
+            .get(key)
+            .map(|deque| {
+                deque
+                    .iter()
+                    .filter(|p| now.saturating_sub(p.issued_at_ms) < CAPTCHA_FRESH_MS)
+                    .count()
+            })
+            .unwrap_or(0)
     }
 
     /// 等待新鲜参数（在指定时间内等待前端过码组件提交；一旦提交立即唤醒返回）。
@@ -431,12 +474,35 @@ impl ZcodeCaptchaStore {
         }
     }
 
+    /// 全量作废指定 key 的所有验证码缓存
     pub fn invalidate(&self, key: &str) {
         let mut guard = self
             .inner
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         guard.remove(key);
+    }
+
+    /// 精准作废指定失败的 token（例如遇到 3007 时剔除特定 param）；
+    /// 返回缓冲池内是否仍有其他可用新鲜 token。
+    pub fn invalidate_param(&self, key: &str, failed_param: &str) -> bool {
+        let mut guard = self
+            .inner
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let now = Self::now_ms();
+        if let Some(deque) = guard.get_mut(key) {
+            deque.retain(|p| {
+                p.param != failed_param && now.saturating_sub(p.issued_at_ms) < CAPTCHA_FRESH_MS
+            });
+            let remaining = !deque.is_empty();
+            if !remaining {
+                guard.remove(key);
+            }
+            remaining
+        } else {
+            false
+        }
     }
 }
 
@@ -1153,11 +1219,33 @@ mod tests {
             notify: tokio::sync::Notify::new(),
         };
         assert!(!store.is_fresh("acc-1"));
-        store.store("acc-1", "cGFyYW0".to_string(), "cn".to_string());
+        store.store("acc-1", "token-1".to_string(), "cn".to_string());
         assert!(store.is_fresh("acc-1"));
-        assert!(store.take_fresh("acc-1").is_some());
+        assert_eq!(store.count_fresh("acc-1"), 1);
+        assert_eq!(store.take_fresh("acc-1").unwrap().param, "token-1");
+
+        // 压入第二个与第三个 token，take_fresh 应返回最新压入的条目
+        store.store("acc-1", "token-2".to_string(), "cn".to_string());
+        store.store("acc-1", "token-3".to_string(), "cn".to_string());
+        assert_eq!(store.count_fresh("acc-1"), 3);
+        assert_eq!(store.take_fresh("acc-1").unwrap().param, "token-3");
+
+        // 压入第四个 token，超过 CAPTCHA_BUFFER_CAPACITY (3)，最老条目 (token-1) 应被淘汰
+        store.store("acc-1", "token-4".to_string(), "cn".to_string());
+        assert_eq!(store.count_fresh("acc-1"), 3);
+        assert_eq!(store.take_fresh("acc-1").unwrap().param, "token-4");
+
+        // 测试精准失效：作废 token-4，缓冲池内仍剩余 2 个可用 token (token-2, token-3)
+        let has_more = store.invalidate_param("acc-1", "token-4");
+        assert!(has_more);
+        assert_eq!(store.count_fresh("acc-1"), 2);
+        assert_eq!(store.take_fresh("acc-1").unwrap().param, "token-3");
+
+        // 全量失效
         store.invalidate("acc-1");
         assert!(!store.is_fresh("acc-1"));
+        assert_eq!(store.count_fresh("acc-1"), 0);
+
         // 空参数不入库
         store.store("acc-2", "  ".to_string(), "cn".to_string());
         assert!(!store.is_fresh("acc-2"));
