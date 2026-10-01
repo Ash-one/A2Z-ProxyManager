@@ -69,6 +69,7 @@
   "nav": {
     "dashboard": "Panel",
     "accounts": "Cuentas",
+    "zcode_accounts": "Cuentas ZCode",
     "proxy": "Proxy API",
     "call_records": "Registros de Tráfico",
     "token_stats": "Estadísticas de Tokens",
@@ -391,6 +392,21 @@
     "drag_disabled_during_sort": "La ordenación por columnas está activa; el arrastre está en pausa",
     "go_to_appeal": "Go to Appeal",
     "copy_appeal_url": "Copy Appeal URL"
+  },
+  "zcodeAccounts": {
+    "title": "Cuentas ZCode",
+    "desc": "Gestión unificada de suscripciones de Coding Plan y del conjunto de claves API de z.ai / bigmodel: inicio de sesión OAuth sin contraseña, importación de credenciales, consulta de cuotas, reclamación de planes y resolución de captcha.",
+    "chips_total": "Total",
+    "chips_available": "Disponibles",
+    "chips_subscription": "Suscripciones",
+    "chips_issue": "Problemas",
+    "empty_title": "Aún no hay cuentas",
+    "empty_desc": "Haz clic en \"Inicio de sesión OAuth\" arriba para obtener cuentas de suscripción sin contraseña, o pega una clave API / JWT de suscripción abajo.",
+    "card_unnamed": "Cuenta sin nombre",
+    "card_edit": "Editar",
+    "card_collapse": "Contraer",
+    "card_credential": "Credencial",
+    "card_upstream": "Proveedor"
   },
   "settings": {
     "save": "Guardar Configuración",
@@ -848,7 +864,11 @@
           "claim_exhausted": "Cuota diaria agotada{{nextAt}}",
           "claim_captcha_failed": "Error de verificación de captcha, por favor reintente",
           "claim_need_captcha": "Se requiere verificación de captcha antes de reclamar",
-          "claim_failed": "Error al reclamar el paquete"
+          "claim_failed": "Error al reclamar el paquete",
+          "pool_moved_hint": "La gestión del conjunto de claves se movió a la página \"Cuentas ZCode\"",
+          "pool_summary": "{{total}} cuentas · {{available}} disponibles",
+          "pool_summary_unknown": "{{total}} cuentas · estado desconocido",
+          "go_manage": "Gestionar"
         },
         "models": {
           "title": "Mapeo de Modelos",

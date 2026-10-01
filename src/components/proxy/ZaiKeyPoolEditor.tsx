@@ -1,6 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Coins, Gift, KeyRound, Plus, RefreshCw, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react';
+import {
+    AlertTriangle,
+    ChevronUp,
+    Coins,
+    Gift,
+    KeyRound,
+    Pencil,
+    Plus,
+    RefreshCw,
+    ShieldCheck,
+    Sparkles,
+    Trash2,
+    Users,
+    X,
+} from 'lucide-react';
 import { request as invoke } from '../../utils/request';
 import HelpTooltip from '../common/HelpTooltip';
 import { showToast } from '../common/ToastContainer';
@@ -25,7 +39,7 @@ interface Props {
     requestTimeout?: number;
 }
 
-const DEFAULT_ZAI: ZaiConfig = {
+export const DEFAULT_ZAI: ZaiConfig = {
     enabled: false,
     base_url: 'https://api.z.ai/api/anthropic',
     api_key: '',
@@ -43,6 +57,8 @@ const STATUS_BADGE: Record<ZaiKeyRuntimeStatus, string> = {
     CaptchaNeeded: 'badge-warning',
 };
 
+const ISSUE_STATUSES: ZaiKeyRuntimeStatus[] = ['Invalid', 'Exhausted', 'CaptchaNeeded'];
+
 // [zcode T1] 迁移显示：keys 为空且存在遗留单 api_key 时，按 base_url 推断 provider 物化为单条目
 function inferProvider(baseUrl?: string): ZaiProvider {
     return (baseUrl || '').toLowerCase().includes('open.bigmodel.cn') ? 'bigmodel' : 'zai';
@@ -50,6 +66,13 @@ function inferProvider(baseUrl?: string): ZaiProvider {
 
 const entryMode = (e: ZaiKeyEntry): ZaiKeyMode => e.mode || 'api_key';
 const entryIdentity = (e: ZaiKeyEntry) => `${entryMode(e)}:${e.key}`;
+
+// [zcode T4] 卡片折叠态的掩码凭证（短凭证全掩码，长凭证留头尾）
+function maskKey(key: string): string {
+    if (!key) return '';
+    if (key.length <= 14) return `${key.slice(0, 3)}${'•'.repeat(Math.max(0, key.length - 3))}`;
+    return `${key.slice(0, 12)}…${key.slice(-4)}`;
+}
 
 // [zcode T2] 手动导入判别（与后端 detect_imported_credential 同语义）：
 // 3 段点分 → 订阅 JWT（Plan 通道）；单点两段 → id.secret 形态 API Key
@@ -64,9 +87,26 @@ function detectImported(raw: string): ZaiKeyMode | null {
 
 import { loadCaptchaSdk } from '../../utils/captcha';
 
+interface StatChipProps {
+    icon: typeof Users;
+    label: string;
+    value: number | string;
+    tone: string;
+}
+
+// [zcode T4] 池级汇总徽章
+const StatChip = ({ icon: Icon, label, value, tone }: StatChipProps) => (
+    <div className="flex items-center gap-1.5 rounded-full bg-white dark:bg-base-100 border border-gray-200 dark:border-base-200 px-3 py-1.5 shadow-sm">
+        <Icon size={12} className={tone} />
+        <span className="text-[10px] text-gray-400 whitespace-nowrap">{label}</span>
+        <span className="text-xs font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{value}</span>
+    </div>
+);
+
 /**
- * z.ai / BigModel API Key 池编辑器（zcode T1/T2/T3）。
- * - 每个 Key 一行：启停 pill + 上游家族（仅 API Key 行）+ Key + 运行状态徽标；
+ * z.ai / bigmodel API Key 池编辑器（zcode T1/T2/T3，T4 升格为独立页面主体）。
+ * - [T4] 条目以账号卡片栅格呈现：身份（邮箱/标签）+ 掩码凭证 + 状态徽标 + 操作区，
+ *   凭证编辑与上游家族选择收进卡片展开态；页首为池级汇总徽章 + 工具栏；
  * - zcode T2：OAuth 免密登录（CLI 流程，自动开通订阅 API Key 入池）、
  *   手动导入自动判别 JWT / API Key、Plan JWT 专属操作；
  * - zcode T3：端内无痕自动过码、Plan 额度查询、限时套餐领取（preview + claim）；
@@ -80,6 +120,8 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
     const [loadingStatus, setLoadingStatus] = useState(false);
     const [oauthWaiting, setOauthWaiting] = useState(false);
     const [importValue, setImportValue] = useState('');
+    // [zcode T4] 展开编辑的条目下标（index 基准：编辑密钥会改变 entryIdentity）
+    const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
     // [zcode T3] 验证码与活动套餐状态
     const [captchaSolvingKey, setCaptchaSolvingKey] = useState<string | null>(null);
@@ -155,6 +197,23 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
         }, 1000);
         return () => clearTimeout(timer);
     }, [signature, refreshStatus]);
+
+    // [zcode T4] 池级汇总
+    const poolStats = useMemo(() => {
+        const jwtCount = keys.filter((k) => entryMode(k) === 'jwt').length;
+        const hasStatuses = statuses.length > 0;
+        const available = keys.reduce((acc, k, i) => {
+            const st = statuses.find((s) => s.index === i);
+            return acc + (st?.status === 'Active' && k.enabled ? 1 : 0);
+        }, 0);
+        const issues = statuses.filter((s) => ISSUE_STATUSES.includes(s.status)).length;
+        return {
+            total: keys.length,
+            jwtCount,
+            available: hasStatuses ? available : null,
+            issues: hasStatuses ? issues : null,
+        };
+    }, [keys, statuses]);
 
     // [zcode T3] 端内无痕验证码求解函数
     const solveCaptcha = useCallback(
@@ -280,6 +339,8 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
     };
 
     const removeRow = (idx: number) => {
+        if (expandedIdx === idx) setExpandedIdx(null);
+        else if (expandedIdx !== null && expandedIdx > idx) setExpandedIdx(expandedIdx - 1);
         emit(keys.filter((_, i) => i !== idx));
     };
 
@@ -539,41 +600,54 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
     };
 
     return (
-        <div className="space-y-2">
+        <div className="space-y-4">
             {/* 隐藏的阿里云验证码容器与触发元素 */}
             <div id="zcode-captcha-element" style={{ position: 'fixed', right: 16, bottom: 16, zIndex: 99999 }} />
             <button id="zcode-captcha-button" type="button" style={{ display: 'none' }} />
 
-            <div className="flex items-center justify-between">
-                <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                    <span>{t('proxy.config.zai.keys.title')}</span>
-                    <HelpTooltip text={t('proxy.config.zai.keys.title_tooltip')} iconSize={12} />
-                </label>
+            {/* 池级汇总徽章 + 工具栏 */}
+            <div className="flex items-center gap-2 flex-wrap">
+                <HelpTooltip text={t('proxy.config.zai.keys.title_tooltip')} iconSize={12} />
+                <StatChip icon={Users} label={t('zcodeAccounts.chips_total')} value={poolStats.total} tone="text-gray-500" />
+                <StatChip
+                    icon={ShieldCheck}
+                    label={t('zcodeAccounts.chips_available')}
+                    value={poolStats.available ?? '—'}
+                    tone="text-emerald-500"
+                />
+                <StatChip icon={Sparkles} label={t('zcodeAccounts.chips_subscription')} value={poolStats.jwtCount} tone="text-amber-500" />
+                <StatChip
+                    icon={AlertTriangle}
+                    label={t('zcodeAccounts.chips_issue')}
+                    value={poolStats.issues ?? '—'}
+                    tone="text-rose-500"
+                />
+                <div className="flex-1" />
                 <div className="flex items-center gap-1">
                     <button
-                        className="btn btn-ghost btn-xs gap-1"
+                        className="btn btn-sm btn-ghost gap-1"
                         onClick={refreshStatus}
                         disabled={loadingStatus}
                     >
-                        <RefreshCw size={12} className={loadingStatus ? 'animate-spin' : ''} />
+                        <RefreshCw size={13} className={loadingStatus ? 'animate-spin' : ''} />
                         {t('proxy.config.zai.keys.refresh_status')}
                     </button>
                     <button
-                        className="btn btn-ghost btn-xs gap-1 text-amber-600 dark:text-amber-400"
+                        className="btn btn-sm btn-ghost gap-1 text-amber-600 dark:text-amber-400"
                         onClick={() => openQuotaModal()}
                         disabled={keys.length === 0}
                         title={t('proxy.config.zai.keys.quota_query_all')}
                     >
-                        <Coins size={12} />
+                        <Coins size={13} />
                         {t('proxy.config.zai.keys.quota_query_btn')}
                     </button>
                     <button
-                        className="btn btn-ghost btn-xs gap-1 text-primary"
+                        className="btn btn-sm btn-primary gap-1"
                         onClick={startOauth}
                         disabled={oauthWaiting}
                         title={t('proxy.config.zai.keys.oauth_tooltip')}
                     >
-                        <KeyRound size={12} className={oauthWaiting ? 'animate-pulse' : ''} />
+                        <KeyRound size={13} className={oauthWaiting ? 'animate-pulse' : ''} />
                         {oauthWaiting
                             ? t('proxy.config.zai.keys.oauth_waiting_short')
                             : t('proxy.config.zai.keys.oauth_login')}
@@ -582,10 +656,13 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
             </div>
 
             {/* 手动导入：粘贴即判别 */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-base-200 bg-white dark:bg-base-100 p-2">
+                <div className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-base-200 flex items-center justify-center shrink-0">
+                    <Plus size={14} className="text-gray-400" />
+                </div>
                 <input
                     type="text"
-                    className="input input-xs input-bordered flex-1 font-mono"
+                    className="input input-sm input-bordered flex-1 font-mono bg-transparent"
                     placeholder={t('proxy.config.zai.keys.import_placeholder')}
                     value={importValue}
                     onChange={(e) => setImportValue(e.target.value)}
@@ -593,104 +670,196 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                         if (e.key === 'Enter') importCredential();
                     }}
                 />
-                <button className="btn btn-ghost btn-xs gap-1" onClick={importCredential}>
-                    <Plus size={12} />
+                <button className="btn btn-sm btn-ghost gap-1 shrink-0" onClick={importCredential}>
+                    <Plus size={13} />
                     {t('proxy.config.zai.keys.import')}
                 </button>
             </div>
 
-            {keys.length === 0 && (
-                <div className="text-[11px] text-gray-400 italic">
-                    {t('proxy.config.zai.keys.empty_hint')}
+            {keys.length === 0 ? (
+                <div className="rounded-xl border-2 border-dashed border-gray-200 dark:border-base-200 py-12 px-6 flex flex-col items-center justify-center gap-2.5 text-center">
+                    <div className="w-12 h-12 rounded-2xl bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-amber-500">
+                        <Sparkles size={22} />
+                    </div>
+                    <div className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                        {t('zcodeAccounts.empty_title')}
+                    </div>
+                    <div className="text-xs text-gray-400 max-w-md leading-relaxed">
+                        {t('zcodeAccounts.empty_desc')}
+                    </div>
+                </div>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 items-start">
+                    {keys.map((entry, idx) => {
+                        const st = statuses.find((s) => s.index === idx);
+                        const isJwt = entryMode(entry) === 'jwt';
+                        const id = entryIdentity(entry);
+                        const isSolving = captchaSolvingKey === id;
+                        const isExpanded = expandedIdx === idx;
+                        const identity =
+                            entry.user_email || entry.account_id || entry.label || t('zcodeAccounts.card_unnamed');
+                        return (
+                            <div
+                                key={idx}
+                                className={`rounded-xl border bg-white dark:bg-base-100 p-4 flex flex-col gap-3 shadow-sm transition-colors ${
+                                    !entry.enabled
+                                        ? 'opacity-55 border-gray-100 dark:border-base-200'
+                                        : 'border-gray-200 dark:border-base-200 hover:border-gray-300 dark:hover:border-base-300'
+                                }`}
+                            >
+                                {/* 身份区：图标 + 名称 + 掩码凭证 + 状态 + 启停 */}
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-2.5 min-w-0">
+                                        <div
+                                            className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                                                isJwt
+                                                    ? 'bg-amber-50 dark:bg-amber-500/10 text-amber-500'
+                                                    : 'bg-blue-50 dark:bg-blue-500/10 text-blue-500'
+                                            }`}
+                                        >
+                                            {isJwt ? <Sparkles size={16} /> : <KeyRound size={16} />}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="text-xs font-semibold text-gray-800 dark:text-gray-100 truncate">
+                                                {identity}
+                                            </div>
+                                            <div
+                                                className="text-[10px] text-gray-400 font-mono truncate mt-0.5"
+                                                title={t('zcodeAccounts.card_credential')}
+                                            >
+                                                {maskKey(entry.key)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        {st && (
+                                            <span
+                                                className={`badge badge-xs whitespace-nowrap ${STATUS_BADGE[st.status] || 'badge-ghost'}`}
+                                                title={st.last_error || undefined}
+                                            >
+                                                {t(`proxy.config.zai.keys.status_${st.status.toLowerCase()}`)}
+                                                {st.status_remaining_secs != null
+                                                    ? ` ${st.status_remaining_secs}s`
+                                                    : ''}
+                                            </span>
+                                        )}
+                                        <input
+                                            type="checkbox"
+                                            className="toggle toggle-xs toggle-success"
+                                            checked={entry.enabled}
+                                            title={t('proxy.config.zai.enabled')}
+                                            onChange={(e) => updateRow(idx, { enabled: e.target.checked })}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* 元信息：模式/上游徽标 + 展开编辑 */}
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    {isJwt ? (
+                                        <span
+                                            className="badge badge-xs badge-outline whitespace-nowrap"
+                                            title={t('proxy.config.zai.keys.mode_jwt_tooltip')}
+                                        >
+                                            {t('proxy.config.zai.keys.mode_jwt_badge')}
+                                        </span>
+                                    ) : (
+                                        <span className="badge badge-xs badge-ghost whitespace-nowrap">
+                                            {entry.provider === 'bigmodel'
+                                                ? t('proxy.config.zai.keys.provider_bigmodel')
+                                                : t('proxy.config.zai.keys.provider_zai')}
+                                        </span>
+                                    )}
+                                    <button
+                                        className="btn btn-ghost btn-xs gap-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                        onClick={() => setExpandedIdx(isExpanded ? null : idx)}
+                                    >
+                                        {isExpanded ? <ChevronUp size={11} /> : <Pencil size={11} />}
+                                        {isExpanded
+                                            ? t('zcodeAccounts.card_collapse')
+                                            : t('zcodeAccounts.card_edit')}
+                                    </button>
+                                </div>
+
+                                {/* 展开态：凭证编辑 + 上游家族（仅 API Key 条目） */}
+                                {isExpanded && (
+                                    <div className="space-y-2 rounded-lg bg-gray-50 dark:bg-base-200/60 p-2.5">
+                                        <label className="text-[10px] font-medium text-gray-400 block">
+                                            {t('zcodeAccounts.card_credential')}
+                                        </label>
+                                        <input
+                                            type="password"
+                                            className="input input-xs input-bordered w-full font-mono"
+                                            value={entry.key}
+                                            placeholder={isJwt ? 'eyJhbGci...' : 'sk-...'}
+                                            onChange={(e) => updateRow(idx, { key: e.target.value })}
+                                        />
+                                        {!isJwt && (
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-medium text-gray-400 block">
+                                                    {t('zcodeAccounts.card_upstream')}
+                                                </label>
+                                                <select
+                                                    className="select select-xs select-bordered w-full"
+                                                    value={entry.provider}
+                                                    onChange={(e) =>
+                                                        updateRow(idx, { provider: e.target.value as ZaiProvider })
+                                                    }
+                                                >
+                                                    <option value="zai">{t('proxy.config.zai.keys.provider_zai')}</option>
+                                                    <option value="bigmodel">
+                                                        {t('proxy.config.zai.keys.provider_bigmodel')}
+                                                    </option>
+                                                </select>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* 操作区 */}
+                                <div className="flex items-center gap-0.5 pt-1 mt-auto border-t border-gray-100 dark:border-base-200">
+                                    {isJwt && (
+                                        <button
+                                            className="btn btn-ghost btn-xs gap-1 text-emerald-600 dark:text-emerald-400"
+                                            disabled={isSolving}
+                                            title={t('proxy.config.zai.keys.captcha_solve')}
+                                            onClick={() => solveCaptcha(entry)}
+                                        >
+                                            <ShieldCheck size={12} className={isSolving ? 'animate-pulse' : ''} />
+                                        </button>
+                                    )}
+                                    {isJwt && (
+                                        <button
+                                            className="btn btn-ghost btn-xs gap-1 text-amber-600 dark:text-amber-400"
+                                            title={t('proxy.config.zai.keys.claim')}
+                                            onClick={() => openClaimModal(entry)}
+                                        >
+                                            <Gift size={12} />
+                                        </button>
+                                    )}
+                                    <button
+                                        className="btn btn-ghost btn-xs gap-1 text-amber-600 dark:text-amber-400"
+                                        title={t('proxy.config.zai.keys.quota_query')}
+                                        onClick={() => openQuotaModal(entry)}
+                                    >
+                                        <Coins size={12} />
+                                        <span className="text-[10px] hidden sm:inline">
+                                            {t('proxy.config.zai.keys.quota_short')}
+                                        </span>
+                                    </button>
+                                    <div className="flex-1" />
+                                    <button
+                                        className="btn btn-ghost btn-xs text-red-500"
+                                        onClick={() => removeRow(idx)}
+                                        title={t('common.delete')}
+                                    >
+                                        <Trash2 size={12} />
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
                 </div>
             )}
-
-            {keys.map((entry, idx) => {
-                const st = statuses.find((s) => s.index === idx);
-                const isJwt = entryMode(entry) === 'jwt';
-                const id = entryIdentity(entry);
-                const isSolving = captchaSolvingKey === id;
-                return (
-                    <div key={idx} className="flex items-center gap-2">
-                        <input
-                            type="checkbox"
-                            className="toggle toggle-xs toggle-success"
-                            checked={entry.enabled}
-                            title={t('proxy.config.zai.enabled')}
-                            onChange={(e) => updateRow(idx, { enabled: e.target.checked })}
-                        />
-                        {isJwt ? (
-                            <span
-                                className="badge badge-xs badge-outline whitespace-nowrap"
-                                title={t('proxy.config.zai.keys.mode_jwt_tooltip')}
-                            >
-                                {t('proxy.config.zai.keys.mode_jwt_badge')}
-                            </span>
-                        ) : (
-                            <select
-                                className="select select-xs select-bordered max-w-[110px]"
-                                value={entry.provider}
-                                onChange={(e) => updateRow(idx, { provider: e.target.value as ZaiProvider })}
-                            >
-                                <option value="zai">{t('proxy.config.zai.keys.provider_zai')}</option>
-                                <option value="bigmodel">{t('proxy.config.zai.keys.provider_bigmodel')}</option>
-                            </select>
-                        )}
-                        <input
-                            type="password"
-                            className="input input-xs input-bordered flex-1 font-mono"
-                            value={entry.key}
-                            placeholder={isJwt ? 'eyJhbGci...' : 'sk-...'}
-                            onChange={(e) => updateRow(idx, { key: e.target.value })}
-                        />
-                        {isJwt && (
-                            <>
-                                <button
-                                    className="btn btn-ghost btn-xs gap-1 text-emerald-600 dark:text-emerald-400"
-                                    disabled={isSolving}
-                                    title={t('proxy.config.zai.keys.captcha_solve')}
-                                    onClick={() => solveCaptcha(entry)}
-                                >
-                                    <ShieldCheck size={12} className={isSolving ? 'animate-pulse' : ''} />
-                                </button>
-                                <button
-                                    className="btn btn-ghost btn-xs gap-1 text-amber-600 dark:text-amber-400"
-                                    title={t('proxy.config.zai.keys.claim')}
-                                    onClick={() => openClaimModal(entry)}
-                                >
-                                    <Gift size={12} />
-                                </button>
-                            </>
-                        )}
-                        <button
-                            className="btn btn-ghost btn-xs gap-1 text-amber-600 dark:text-amber-400"
-                            title={t('proxy.config.zai.keys.quota_query')}
-                            onClick={() => openQuotaModal(entry)}
-                        >
-                            <Coins size={12} />
-                            <span className="text-[10px] hidden sm:inline">{t('proxy.config.zai.keys.quota_short')}</span>
-                        </button>
-                        {st && (
-                            <span
-                                className={`badge badge-xs whitespace-nowrap ${STATUS_BADGE[st.status] || 'badge-ghost'}`}
-                                title={st.last_error || undefined}
-                            >
-                                {t(`proxy.config.zai.keys.status_${st.status.toLowerCase()}`)}
-                                {st.status_remaining_secs != null
-                                    ? ` ${st.status_remaining_secs}s`
-                                    : ''}
-                            </span>
-                        )}
-                        <button
-                            className="btn btn-ghost btn-xs text-red-500"
-                            onClick={() => removeRow(idx)}
-                            title={t('common.delete')}
-                        >
-                            <Trash2 size={12} />
-                        </button>
-                    </div>
-                );
-            })}
 
             {/* [zcode T3] 限时活动套餐领取弹窗 */}
             {claimTarget && (

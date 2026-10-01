@@ -68,6 +68,7 @@
   "nav": {
     "dashboard": "儀表板",
     "accounts": "帳號管理",
+    "zcode_accounts": "ZCode 帳號",
     "proxy": "API 反向代理",
     "token_stats": "統計",
     "call_records": "流量日誌",
@@ -391,6 +392,21 @@
       "tip3": "If it still fails, check the Generative Language API in <1>Google Cloud Console</1> to see if permissions are frozen. If so, your account is under risk control. Please let the account cool down for 72 hours before trying again.",
       "tip4": "You can also try <1>npm install -g @google/gemini-cli</1>. If it doesn't throw errors, simply deleting and re-authorizing the account in the app will likely fix it."
     }
+  },
+  "zcodeAccounts": {
+    "title": "ZCode 帳號",
+    "desc": "Coding Plan 訂閱與 z.ai / bigmodel API Key 池的統一管理：OAuth 免密登入、憑證匯入、額度查詢、套餐領取與驗證碼過碼。",
+    "chips_total": "帳號總數",
+    "chips_available": "可用",
+    "chips_subscription": "訂閱",
+    "chips_issue": "異常",
+    "empty_title": "還沒有帳號",
+    "empty_desc": "點擊上方「OAuth 登入」免密匯入訂閱帳號，或在下方貼上 API Key / 訂閱 JWT。",
+    "card_unnamed": "未命名帳號",
+    "card_edit": "編輯",
+    "card_collapse": "收起",
+    "card_credential": "憑證",
+    "card_upstream": "上游家族"
   },
   "settings": {
     "save": "儲存設定",
@@ -854,7 +870,11 @@
           "claim_exhausted": "今日領取名額已用完{{nextAt}}",
           "claim_captcha_failed": "驗證碼校驗失敗，請重試",
           "claim_need_captcha": "領取前需先完成驗證碼校驗",
-          "claim_failed": "套餐領取失敗"
+          "claim_failed": "套餐領取失敗",
+          "pool_moved_hint": "Key 池管理已移至「ZCode 帳號」頁",
+          "pool_summary": "{{total}} 個帳號 · {{available}} 個可用",
+          "pool_summary_unknown": "{{total}} 個帳號 · 執行狀態未知",
+          "go_manage": "前往管理"
         },
         "models": {
           "title": "模型對映",

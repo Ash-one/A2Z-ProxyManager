@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, startTransition } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { request as invoke } from '../utils/request';
 import { isTauri } from '../utils/env';
@@ -26,7 +27,7 @@ import {
     Zap,
     Puzzle
 } from 'lucide-react';
-import { AppConfig, ProxyConfig, StickySessionConfig, ExperimentalConfig } from '../types/config';
+import { AppConfig, ProxyConfig, StickySessionConfig, ExperimentalConfig, ZaiKeyStatusView } from '../types/config';
 import HelpTooltip from '../components/common/HelpTooltip';
 import ModalDialog from '../components/common/ModalDialog';
 import { showToast } from '../components/common/ToastContainer';
@@ -34,7 +35,6 @@ import { cn } from '../utils/cn';
 import { useProxyModels } from '../hooks/useProxyModels';
 import GroupedSelect, { SelectOption } from '../components/common/GroupedSelect';
 import { CliSyncCard } from '../components/proxy/CliSyncCard';
-import { ZaiKeyPoolEditor } from '../components/proxy/ZaiKeyPoolEditor';
 import { listAccounts } from '../services/accountService';
 import CircuitBreaker from '../components/settings/CircuitBreaker';
 import GlobalSystemPrompt from '../components/settings/GlobalSystemPrompt';
@@ -163,6 +163,8 @@ export default function ApiProxy() {
 
     const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
     const [activeMenuTab, setActiveMenuTab] = useState<'settings' | 'models' | 'cli' | 'protocols'>('settings');
+    // [zcode T4] Key 池管理已升格为独立「ZCode 账号」页，此处仅展示状态摘要
+    const [zaiPoolAvailable, setZaiPoolAvailable] = useState<number | null>(null);
     const [configLoading, setConfigLoading] = useState(true);
     const [configError, setConfigError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -789,6 +791,27 @@ export default function ApiProxy() {
             showToast(`${t('common.error')}: ${error}`, 'error');
         }
     };
+
+    // [zcode T4] 服务配置标签页激活时拉取一次 Key 池可用数（仅摘要展示，管理在 ZCode 账号页）
+    useEffect(() => {
+        if (activeMenuTab !== 'settings') return;
+        let cancelled = false;
+        invoke<ZaiKeyStatusView[]>('get_zai_key_pool_status')
+            .then(views => {
+                if (!cancelled) {
+                    setZaiPoolAvailable(Array.isArray(views) ? views.filter(s => s.status === 'Active').length : 0);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) setZaiPoolAvailable(null);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [activeMenuTab]);
+
+    const zaiKeyCount =
+        appConfig?.proxy.zai?.keys?.length || ((appConfig?.proxy.zai?.api_key || '').trim() ? 1 : 0);
 
     const updateZaiGeneralConfig = (updates: Partial<NonNullable<ProxyConfig['zai']>>) => {
         if (!appConfig?.proxy.zai) return;
@@ -2169,13 +2192,29 @@ print(response.choices[0].message.content)`;
                                         </div>
                                     </div>
 
-                                    {/* [zcode T1/T2] API Key 池（多 Key 轮询/故障转移 + OAuth 登录入池） */}
-                                    <ZaiKeyPoolEditor
-                                        zai={appConfig.proxy.zai}
-                                        onChange={(updates) => updateZaiGeneralConfig(updates)}
-                                        upstreamProxy={appConfig.proxy.upstream_proxy}
-                                        requestTimeout={appConfig.proxy.request_timeout}
-                                    />
+                                    {/* [zcode T4] Key 池管理已升格为独立「ZCode 账号」页，此处保留状态摘要与跳转 */}
+                                    <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-base-200 bg-gray-50 dark:bg-base-200/60 px-3 py-2.5">
+                                        <div className="min-w-0">
+                                            <div className="text-xs text-gray-600 dark:text-gray-300">
+                                                {t('proxy.config.zai.keys.pool_moved_hint')}
+                                            </div>
+                                            <div className="text-[10px] text-gray-400 mt-0.5">
+                                                {zaiPoolAvailable !== null
+                                                    ? t('proxy.config.zai.keys.pool_summary', {
+                                                          total: zaiKeyCount,
+                                                          available: zaiPoolAvailable,
+                                                      })
+                                                    : t('proxy.config.zai.keys.pool_summary_unknown', { total: zaiKeyCount })}
+                                            </div>
+                                        </div>
+                                        <Link
+                                            to="/zcode-accounts"
+                                            className="btn btn-sm btn-ghost gap-1 text-primary shrink-0"
+                                        >
+                                            {t('proxy.config.zai.keys.go_manage')}
+                                            <ArrowRight size={13} />
+                                        </Link>
+                                    </div>
                                 </div>
                             </CollapsibleCard>
 

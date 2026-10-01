@@ -69,6 +69,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "accounts": "Accounts",
+    "zcode_accounts": "ZCode Accounts",
     "proxy": "API Proxy",
     "call_records": "Traffic Logs",
     "token_stats": "Token Stats",
@@ -412,6 +413,21 @@
       "batch_warmup_msg": "Are you sure you want to trigger warmup for the selected {{count}} accounts immediately?"
     },
     "switch_to_agy": "Switch to Antigravity CLI (agy)"
+  },
+  "zcodeAccounts": {
+    "title": "ZCode Accounts",
+    "desc": "Unified management of Coding Plan subscriptions and the z.ai / bigmodel API key pool: password-free OAuth login, credential import, quota queries, plan claiming and captcha solving.",
+    "chips_total": "Total",
+    "chips_available": "Available",
+    "chips_subscription": "Subscription",
+    "chips_issue": "Issues",
+    "empty_title": "No accounts yet",
+    "empty_desc": "Click \"OAuth Login\" above to import subscription accounts without a password, or paste an API key / subscription JWT below.",
+    "card_unnamed": "Unnamed account",
+    "card_edit": "Edit",
+    "card_collapse": "Collapse",
+    "card_credential": "Credential",
+    "card_upstream": "Upstream"
   },
   "settings": {
     "save": "Save Settings",
@@ -886,7 +902,11 @@
           "claim_exhausted": "Daily quota exhausted{{nextAt}}",
           "claim_captcha_failed": "Captcha verification failed, please retry",
           "claim_need_captcha": "Captcha verification required before claiming",
-          "claim_failed": "Failed to claim package"
+          "claim_failed": "Failed to claim package",
+          "pool_moved_hint": "Key pool management has moved to the ZCode Accounts page",
+          "pool_summary": "{{total}} accounts · {{available}} available",
+          "pool_summary_unknown": "{{total}} accounts · status unknown",
+          "go_manage": "Manage"
         },
         "models": {
           "title": "Model Mapping",

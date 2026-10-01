@@ -68,6 +68,7 @@
   "nav": {
     "dashboard": "Kontrol Paneli",
     "accounts": "Hesaplar",
+    "zcode_accounts": "ZCode Hesapları",
     "proxy": "API Proxy",
     "token_stats": "İstatistikler",
     "call_records": "Trafik Günlükleri",
@@ -391,6 +392,21 @@
     "quota_window_5h": "5-Hour Rolling Quota",
     "quota_window_weekly": "7-Day Weekly Quota",
     "quota_window_weekly_short": "Weekly"
+  },
+  "zcodeAccounts": {
+    "title": "ZCode Hesapları",
+    "desc": "Coding Plan aboneliklerinin ve z.ai / bigmodel API anahtarı havuzunun birleşik yönetimi: şifresiz OAuth girişi, kimlik bilgisi içe aktarma, kota sorgulama, plan talep etme ve captcha çözme.",
+    "chips_total": "Toplam",
+    "chips_available": "Kullanılabilir",
+    "chips_subscription": "Abonelik",
+    "chips_issue": "Sorunlu",
+    "empty_title": "Henüz hesap yok",
+    "empty_desc": "Abonelik hesaplarını içe aktarmak için yukarıdaki \"OAuth Girişi\"ne tıklayın veya aşağıya API anahtarı / abonelik JWT'si yapıştırın.",
+    "card_unnamed": "Adsız hesap",
+    "card_edit": "Düzenle",
+    "card_collapse": "Kapat",
+    "card_credential": "Kimlik bilgisi",
+    "card_upstream": "Akış sağlayıcı"
   },
   "settings": {
     "save": "Ayarları Kaydet",
@@ -841,7 +857,11 @@
           "claim_exhausted": "Günlük kota tükendi{{nextAt}}",
           "claim_captcha_failed": "Doğrulama başarısız oldu, lütfen tekrar deneyin",
           "claim_need_captcha": "Almadan önce doğrulama gereklidir",
-          "claim_failed": "Paket alma başarısız oldu"
+          "claim_failed": "Paket alma başarısız oldu",
+          "pool_moved_hint": "Anahtar havuzu yönetimi \"ZCode Hesapları\" sayfasına taşındı",
+          "pool_summary": "{{total}} hesap · {{available}} kullanılabilir",
+          "pool_summary_unknown": "{{total}} hesap · durum bilinmiyor",
+          "go_manage": "Yönet"
         },
         "models": {
           "title": "Model Eşleme",

@@ -67,6 +67,7 @@
   "nav": {
     "dashboard": "仪表盘",
     "accounts": "账号管理",
+    "zcode_accounts": "ZCode 账号",
     "proxy": "API 反代",
     "call_records": "流量日志",
     "token_stats": "Token 统计",
@@ -410,6 +411,21 @@
       "batch_warmup_msg": "确定要为选中的 {{count}} 个账号立即触发预热吗？"
     },
     "switch_to_agy": "Switch to Antigravity CLI (agy)"
+  },
+  "zcodeAccounts": {
+    "title": "ZCode 账号",
+    "desc": "Coding Plan 订阅与 z.ai / bigmodel API Key 池的统一管理：OAuth 免密登录、凭证导入、额度查询、套餐领取与验证码过码。",
+    "chips_total": "账号总数",
+    "chips_available": "可用",
+    "chips_subscription": "订阅",
+    "chips_issue": "异常",
+    "empty_title": "还没有账号",
+    "empty_desc": "点击上方「OAuth 登录」免密导入订阅账号，或在下方粘贴 API Key / 订阅 JWT。",
+    "card_unnamed": "未命名账号",
+    "card_edit": "编辑",
+    "card_collapse": "收起",
+    "card_credential": "凭证",
+    "card_upstream": "上游家族"
   },
   "settings": {
     "save": "保存设置",
@@ -877,7 +893,11 @@
           "claim_exhausted": "今日领取名额已用完{{nextAt}}",
           "claim_captcha_failed": "验证码校验失败，请重试",
           "claim_need_captcha": "领取前需先完成验证码校验",
-          "claim_failed": "套餐领取失败"
+          "claim_failed": "套餐领取失败",
+          "pool_moved_hint": "Key 池管理已移至「ZCode 账号」页",
+          "pool_summary": "{{total}} 个账号 · {{available}} 个可用",
+          "pool_summary_unknown": "{{total}} 个账号 · 运行状态未知",
+          "go_manage": "前往管理"
         },
         "models": {
           "title": "模型映射",

@@ -69,6 +69,7 @@
   "nav": {
     "dashboard": "Дашборд",
     "accounts": "Аккаунты",
+    "zcode_accounts": "Аккаунты ZCode",
     "proxy": "API Прокси",
     "call_records": "Логи трафика",
     "token_stats": "Статистика",
@@ -391,6 +392,21 @@
     "drag_disabled_during_sort": "Активна сортировка по столбцам; перетаскивание приостановлено",
     "go_to_appeal": "Go to Appeal",
     "copy_appeal_url": "Copy Appeal URL"
+  },
+  "zcodeAccounts": {
+    "title": "Аккаунты ZCode",
+    "desc": "Единое управление подписками Coding Plan и пулом API-ключей z.ai / bigmodel: вход через OAuth без пароля, импорт учётных данных, запрос квот, получение тарифов и решение капчи.",
+    "chips_total": "Всего",
+    "chips_available": "Доступно",
+    "chips_subscription": "Подписки",
+    "chips_issue": "Проблемы",
+    "empty_title": "Аккаунтов пока нет",
+    "empty_desc": "Нажмите «Вход через OAuth» выше, чтобы добавить подписочные аккаунты без пароля, или вставьте API-ключ / подписочный JWT ниже.",
+    "card_unnamed": "Безымянный аккаунт",
+    "card_edit": "Изменить",
+    "card_collapse": "Свернуть",
+    "card_credential": "Учётные данные",
+    "card_upstream": "Провайдер"
   },
   "settings": {
     "save": "Сохранить настройки",
@@ -848,7 +864,11 @@
           "claim_exhausted": "Дневная квота исчерпана{{nextAt}}",
           "claim_captcha_failed": "Проверка капчи не удалась, повторите попытку",
           "claim_need_captcha": "Перед получением требуется проверка капчи",
-          "claim_failed": "Не удалось получить пакет"
+          "claim_failed": "Не удалось получить пакет",
+          "pool_moved_hint": "Управление пулом ключей перенесено на страницу «Аккаунты ZCode»",
+          "pool_summary": "Аккаунтов: {{total}} · доступно: {{available}}",
+          "pool_summary_unknown": "Аккаунтов: {{total}} · состояние неизвестно",
+          "go_manage": "Управлять"
         },
         "models": {
           "title": "Отображение моделей",

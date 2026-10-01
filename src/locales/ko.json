@@ -69,6 +69,7 @@
   "nav": {
     "dashboard": "대시보드",
     "accounts": "계정 관리",
+    "zcode_accounts": "ZCode 계정",
     "proxy": "API 프록시",
     "call_records": "트래픽 로그",
     "token_stats": "토큰 통계",
@@ -391,6 +392,21 @@
     "drag_disabled_during_sort": "열 정렬이 활성화되어 드래그 정렬이 일시 중지되었습니다",
     "go_to_appeal": "이의 제기하러 가기",
     "copy_appeal_url": "이의 제기 URL 복사"
+  },
+  "zcodeAccounts": {
+    "title": "ZCode 계정",
+    "desc": "Coding Plan 구독과 z.ai / bigmodel API Key 풀의 통합 관리: OAuth 비밀번호 없는 로그인, 자격 증명 가져오기, 쿼터 조회, 플랜 수령, 캡차 해결.",
+    "chips_total": "전체",
+    "chips_available": "사용 가능",
+    "chips_subscription": "구독",
+    "chips_issue": "이상",
+    "empty_title": "아직 계정이 없습니다",
+    "empty_desc": "위의 \"OAuth 로그인\"으로 구독 계정을 가져오거나, 아래에 API Key / 구독 JWT를 붙여넣으세요.",
+    "card_unnamed": "이름 없는 계정",
+    "card_edit": "편집",
+    "card_collapse": "접기",
+    "card_credential": "자격 증명",
+    "card_upstream": "업스트림"
   },
   "settings": {
     "save": "설정 저장",
@@ -848,7 +864,11 @@
           "claim_exhausted": "오늘의 수령 한도가 소진되었습니다{{nextAt}}",
           "claim_captcha_failed": "캡차 인증에 실패했습니다. 다시 시도해 주세요",
           "claim_need_captcha": "수령 전 캡차 인증이 필요합니다",
-          "claim_failed": "패키지 수령 실패"
+          "claim_failed": "패키지 수령 실패",
+          "pool_moved_hint": "키 풀 관리는 \"ZCode 계정\" 페이지로 이동했습니다",
+          "pool_summary": "계정 {{total}}개 · 사용 가능 {{available}}개",
+          "pool_summary_unknown": "계정 {{total}}개 · 상태 알 수 없음",
+          "go_manage": "관리하기"
         },
         "models": {
           "title": "모델 매핑",

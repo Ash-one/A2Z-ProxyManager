@@ -69,6 +69,7 @@
   "nav": {
     "dashboard": "ダッシュボード",
     "accounts": "アカウント",
+    "zcode_accounts": "ZCode アカウント",
     "proxy": "APIプロキシ",
     "call_records": "トラフィックログ",
     "token_stats": "統計",
@@ -391,6 +392,21 @@
     "drag_disabled_during_sort": "列ソートが有効なため、ドラッグ並び替えは一時停止中です",
     "go_to_appeal": "異議申し立てへ移動",
     "copy_appeal_url": "異議申し立てURLをコピー"
+  },
+  "zcodeAccounts": {
+    "title": "ZCode アカウント",
+    "desc": "Coding Plan サブスクリプションと z.ai / bigmodel API Key プールの統一管理：OAuth ログイン、認証情報のインポート、クォータ照会、プラン受け取り、キャプチャ解決。",
+    "chips_total": "合計",
+    "chips_available": "利用可能",
+    "chips_subscription": "サブスク",
+    "chips_issue": "異常",
+    "empty_title": "アカウントがまだありません",
+    "empty_desc": "上の「OAuth ログイン」でサブスクアカウントを取得するか、下に API Key / サブスク JWT を貼り付けてください。",
+    "card_unnamed": "名前のないアカウント",
+    "card_edit": "編集",
+    "card_collapse": "折りたたむ",
+    "card_credential": "認証情報",
+    "card_upstream": "上流プロバイダ"
   },
   "settings": {
     "save": "設定を保存",
@@ -848,7 +864,11 @@
           "claim_exhausted": "本日の受け取り枠が終了しました{{nextAt}}",
           "claim_captcha_failed": "キャプチャ検証に失敗しました。再試行してください",
           "claim_need_captcha": "受け取る前にキャプチャ検証が必要です",
-          "claim_failed": "プランの受け取りに失敗しました"
+          "claim_failed": "プランの受け取りに失敗しました",
+          "pool_moved_hint": "Key プール管理は「ZCode アカウント」ページに移動しました",
+          "pool_summary": "{{total}} 個のアカウント · {{available}} 個が利用可能",
+          "pool_summary_unknown": "{{total}} 個のアカウント · 状態不明",
+          "go_manage": "管理へ"
         },
         "models": {
           "title": "モデルマッピング",

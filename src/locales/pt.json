@@ -69,6 +69,7 @@
   "nav": {
     "dashboard": "Painel",
     "accounts": "Contas",
+    "zcode_accounts": "Contas ZCode",
     "proxy": "Proxy da API",
     "call_records": "Registros de Tráfego",
     "token_stats": "Estatísticas de Tokens",
@@ -395,6 +396,21 @@
     "switch_to_agy": "Alternar para Antigravity CLI (agy)",
     "warmup_all_triggered": "Tarefa de pré-aquecimento disparada para todas as contas",
     "drag_disabled_during_sort": "A ordenação por coluna está ativa; o arrasto está pausado"
+  },
+  "zcodeAccounts": {
+    "title": "Contas ZCode",
+    "desc": "Gestão unificada de subscrições do Coding Plan e do conjunto de chaves de API z.ai / bigmodel: início de sessão OAuth sem palavra-passe, importação de credenciais, consulta de quotas, reclamação de planos e resolução de captcha.",
+    "chips_total": "Total",
+    "chips_available": "Disponíveis",
+    "chips_subscription": "Subscrições",
+    "chips_issue": "Problemas",
+    "empty_title": "Ainda sem contas",
+    "empty_desc": "Clique em \"Início de Sessão OAuth\" acima para obter contas de subscrição sem palavra-passe, ou cole uma chave de API / JWT de subscrição abaixo.",
+    "card_unnamed": "Conta sem nome",
+    "card_edit": "Editar",
+    "card_collapse": "Recolher",
+    "card_credential": "Credencial",
+    "card_upstream": "Fornecedor upstream"
   },
   "settings": {
     "save": "Salvar Configurações",
@@ -861,7 +877,11 @@
           "claim_exhausted": "Cota diária esgotada{{nextAt}}",
           "claim_captcha_failed": "Falha na verificação do captcha, tente novamente",
           "claim_need_captcha": "Verificação de captcha necessária antes de resgatar",
-          "claim_failed": "Falha ao resgatar pacote"
+          "claim_failed": "Falha ao resgatar pacote",
+          "pool_moved_hint": "A gestão do conjunto de chaves foi movida para a página \"Contas ZCode\"",
+          "pool_summary": "{{total}} contas · {{available}} disponíveis",
+          "pool_summary_unknown": "{{total}} contas · estado desconhecido",
+          "go_manage": "Gerir"
         },
         "models": {
           "title": "Mapeamento de Modelos",

@@ -67,6 +67,7 @@
   "nav": {
     "dashboard": "الرئيسية",
     "accounts": "الحسابات",
+    "zcode_accounts": "حسابات ZCode",
     "proxy": "وكيل API",
     "call_records": "سجلات المرور",
     "security": "إدارة IP",
@@ -389,6 +390,21 @@
     "quota_window_5h": "5-Hour Rolling Quota",
     "quota_window_weekly": "7-Day Weekly Quota",
     "quota_window_weekly_short": "Weekly"
+  },
+  "zcodeAccounts": {
+    "title": "حسابات ZCode",
+    "desc": "إدارة موحدة لاشتراكات Coding Plan ومجموعة مفاتيح API لـ z.ai / bigmodel: تسجيل دخول OAuth بدون كلمة مرور، استيراد بيانات الاعتماد، الاستعلام عن الحصة، استلام الخطط وحل كود التحقق.",
+    "chips_total": "الإجمالي",
+    "chips_available": "متاح",
+    "chips_subscription": "الاشتراكات",
+    "chips_issue": "مشكلات",
+    "empty_title": "لا توجد حسابات بعد",
+    "empty_desc": "انقر \"تسجيل الدخول OAuth\" أعلاه لاستيراد حسابات الاشتراك بدون كلمة مرور، أو الصق مفتاح API / JWT الاشتراك أدناه.",
+    "card_unnamed": "حساب بدون اسم",
+    "card_edit": "تعديل",
+    "card_collapse": "طي",
+    "card_credential": "بيانات الاعتماد",
+    "card_upstream": "المزود"
   },
   "settings": {
     "save": "حفظ الإعدادات",
@@ -839,7 +855,11 @@
           "claim_exhausted": "تم استنفاد الحصة اليومية{{nextAt}}",
           "claim_captcha_failed": "فشل التحقق من الكابتشا، يرجى إعادة المحاولة",
           "claim_need_captcha": "التحقق من الكابتشا مطلوب قبل المطالبة",
-          "claim_failed": "فشلت المطالبة بالباقة"
+          "claim_failed": "فشلت المطالبة بالباقة",
+          "pool_moved_hint": "تم نقل إدارة مجموعة المفاتيح إلى صفحة \"حسابات ZCode\"",
+          "pool_summary": "{{total}} حسابات · {{available}} متاح",
+          "pool_summary_unknown": "{{total}} حسابات · الحالة غير معروفة",
+          "go_manage": "إدارة"
         },
         "models": {
           "title": "خريطة النماذج",

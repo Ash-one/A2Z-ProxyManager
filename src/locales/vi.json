@@ -68,6 +68,7 @@
   "nav": {
     "dashboard": "Tổng quan",
     "accounts": "Tài khoản",
+    "zcode_accounts": "Tài khoản ZCode",
     "proxy": "API Proxy",
     "token_stats": "Thống kê",
     "call_records": "Nhật ký lưu lượng",
@@ -391,6 +392,21 @@
     "quota_window_5h": "5-Hour Rolling Quota",
     "quota_window_weekly": "7-Day Weekly Quota",
     "quota_window_weekly_short": "Weekly"
+  },
+  "zcodeAccounts": {
+    "title": "Tài khoản ZCode",
+    "desc": "Quản lý thống nhất đăng ký Coding Plan và kho API key z.ai / bigmodel: đăng nhập OAuth không cần mật khẩu, nhập thông tin xác thực, truy vấn hạn mức, nhận gói và giải captcha.",
+    "chips_total": "Tổng",
+    "chips_available": "Khả dụng",
+    "chips_subscription": "Đăng ký",
+    "chips_issue": "Lỗi",
+    "empty_title": "Chưa có tài khoản",
+    "empty_desc": "Nhấn \"Đăng nhập OAuth\" ở trên để thêm tài khoản đăng ký, hoặc dán API key / JWT đăng ký bên dưới.",
+    "card_unnamed": "Tài khoản chưa đặt tên",
+    "card_edit": "Sửa",
+    "card_collapse": "Thu gọn",
+    "card_credential": "Thông tin xác thực",
+    "card_upstream": "Nhà cung cấp"
   },
   "settings": {
     "save": "Lưu Cài đặt",
@@ -841,7 +857,11 @@
           "claim_exhausted": "Đã hết hạn mức nhận hôm nay{{nextAt}}",
           "claim_captcha_failed": "Xác thực captcha thất bại, vui lòng thử lại",
           "claim_need_captcha": "Cần xác thực captcha trước khi nhận",
-          "claim_failed": "Nhận gói thất bại"
+          "claim_failed": "Nhận gói thất bại",
+          "pool_moved_hint": "Quản lý kho key đã chuyển đến trang \"Tài khoản ZCode\"",
+          "pool_summary": "{{total}} tài khoản · {{available}} khả dụng",
+          "pool_summary_unknown": "{{total}} tài khoản · không rõ trạng thái",
+          "go_manage": "Quản lý"
         },
         "models": {
           "title": "Ánh xạ Model",

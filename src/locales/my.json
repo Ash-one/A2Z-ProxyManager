@@ -67,6 +67,7 @@
   "nav": {
     "dashboard": "Papan Pemuka",
     "accounts": "Akaun",
+    "zcode_accounts": "Akaun ZCode",
     "proxy": "Proksi API",
     "call_records": "Log Trafik",
     "token_stats": "Statistik Token",
@@ -389,6 +390,21 @@
     "quota_window_5h": "5-Hour Rolling Quota",
     "quota_window_weekly": "7-Day Weekly Quota",
     "quota_window_weekly_short": "Weekly"
+  },
+  "zcodeAccounts": {
+    "title": "Akaun ZCode",
+    "desc": "Pengurusan bersepadu langganan Coding Plan dan kolam kunci API z.ai / bigmodel: log masuk OAuth tanpa kata laluan, import kredensial, pertanyaan kuota, tuntutan pelan dan penyelesaian captcha.",
+    "chips_total": "Jumlah",
+    "chips_available": "Tersedia",
+    "chips_subscription": "Langganan",
+    "chips_issue": "Masalah",
+    "empty_title": "Belum ada akaun",
+    "empty_desc": "Klik \"Log Masuk OAuth\" di atas untuk import akaun langganan tanpa kata laluan, atau tampal kunci API / JWT langganan di bawah.",
+    "card_unnamed": "Akaun tanpa nama",
+    "card_edit": "Sunting",
+    "card_collapse": "Tutup",
+    "card_credential": "Kredensial",
+    "card_upstream": "Pembekal hulu"
   },
   "settings": {
     "save": "Simpan Tetapan",
@@ -833,7 +849,11 @@
           "claim_exhausted": "ယနေ့အတွက် ကန့်သတ်ချက် ပြည့်သွားပါပြီ{{nextAt}}",
           "claim_captcha_failed": "Captcha အတည်ပြုမှု မအောင်မြင်ပါ၊ ကျေးဇူးပြု၍ ထပ်စမ်းပါ",
           "claim_need_captcha": "မရယူမီ Captcha အတည်ပြုချက် လိုအပ်ပါသည်",
-          "claim_failed": "ပက်ကေ့ဂျ် ရယူမှု မအောင်မြင်ပါ"
+          "claim_failed": "ပက်ကေ့ဂျ် ရယူမှု မအောင်မြင်ပါ",
+          "pool_moved_hint": "Pengurusan kolam kunci telah berpindah ke halaman \"Akaun ZCode\"",
+          "pool_summary": "{{total}} akaun · {{available}} tersedia",
+          "pool_summary_unknown": "{{total}} akaun · status tidak diketahui",
+          "go_manage": "Urus"
         },
         "models": {
           "title": "Pemetaan Model",
