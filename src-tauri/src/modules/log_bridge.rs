@@ -49,6 +49,11 @@ pub fn init_log_bridge(app_handle: tauri::AppHandle) {
     tracing::debug!("[LogBridge] Initialized with app handle");
 }
 
+/// Get the global app handle if initialized
+pub fn get_app_handle() -> Option<&'static tauri::AppHandle> {
+    APP_HANDLE.get()
+}
+
 /// Enable log bridging and emit buffered logs
 pub fn enable_log_bridge() {
     LOG_BRIDGE_ENABLED.store(true, Ordering::SeqCst);

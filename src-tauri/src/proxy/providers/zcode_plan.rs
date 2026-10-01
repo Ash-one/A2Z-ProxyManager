@@ -347,6 +347,7 @@ pub struct CaptchaParam {
 /// 验证码参数进程内存储（前端过码组件提交 → 消息转发取用 → 3007 即失效）。
 pub struct ZcodeCaptchaStore {
     inner: RwLock<HashMap<String, CaptchaParam>>,
+    notify: tokio::sync::Notify,
 }
 
 impl ZcodeCaptchaStore {
@@ -354,6 +355,7 @@ impl ZcodeCaptchaStore {
         static INSTANCE: OnceLock<ZcodeCaptchaStore> = OnceLock::new();
         INSTANCE.get_or_init(|| ZcodeCaptchaStore {
             inner: RwLock::new(HashMap::new()),
+            notify: tokio::sync::Notify::new(),
         })
     }
 
@@ -380,6 +382,8 @@ impl ZcodeCaptchaStore {
                 issued_at_ms: Self::now_ms(),
             },
         );
+        drop(guard);
+        self.notify.notify_waiters();
     }
 
     fn peek(&self, key: &str) -> Option<CaptchaParam> {
@@ -402,12 +406,51 @@ impl ZcodeCaptchaStore {
             .filter(|p| Self::now_ms().saturating_sub(p.issued_at_ms) < CAPTCHA_FRESH_MS)
     }
 
+    /// 等待新鲜参数（在指定时间内等待前端过码组件提交；一旦提交立即唤醒返回）。
+    pub async fn wait_fresh(
+        &self,
+        key: &str,
+        timeout: std::time::Duration,
+    ) -> Option<CaptchaParam> {
+        if let Some(param) = self.take_fresh(key) {
+            return Some(param);
+        }
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            let notified = self.notify.notified();
+            tokio::select! {
+                _ = notified => {
+                    if let Some(param) = self.take_fresh(key) {
+                        return Some(param);
+                    }
+                }
+                _ = tokio::time::sleep_until(deadline) => {
+                    return self.take_fresh(key);
+                }
+            }
+        }
+    }
+
     pub fn invalidate(&self, key: &str) {
         let mut guard = self
             .inner
             .write()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         guard.remove(key);
+    }
+}
+
+/// 向前端派发“需要过码”事件（Tauri 环境下派发至前端全局后台守候器）
+pub fn emit_captcha_needed_event(account_id: &str, key: &str) {
+    if let Some(app) = crate::modules::log_bridge::get_app_handle() {
+        use tauri::Emitter;
+        let _ = app.emit(
+            "zcode://solve-captcha",
+            serde_json::json!({
+                "accountId": account_id,
+                "key": key,
+            }),
+        );
     }
 }
 
@@ -1107,6 +1150,7 @@ mod tests {
     fn captcha_store_freshness_and_invalidate() {
         let store = ZcodeCaptchaStore {
             inner: RwLock::new(HashMap::new()),
+            notify: tokio::sync::Notify::new(),
         };
         assert!(!store.is_fresh("acc-1"));
         store.store("acc-1", "cGFyYW0".to_string(), "cn".to_string());

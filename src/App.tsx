@@ -14,6 +14,7 @@ import { ApiKeyFun } from './pages/ApiKeyFun';
 import { UpdateNotification } from './components/UpdateNotification';
 import SuggestionDeleteThinkingModal from './components/common/SuggestionDeleteThinkingModal';
 import DebugConsole from './components/debug/DebugConsole';
+import { ZcodeCaptchaDaemon } from './components/proxy/ZcodeCaptchaDaemon';
 import { useEffect, useState, startTransition } from 'react';
 import { useConfigStore } from './stores/useConfigStore';
 import { useAccountStore } from './stores/useAccountStore';
@@ -167,6 +168,7 @@ function App() {
     <AdminAuthGuard>
       <ThemeManager />
       <DebugConsole />
+      <ZcodeCaptchaDaemon />
       <SuggestionDeleteThinkingModal />
       {showUpdateNotification && (
         <UpdateNotification onClose={() => setShowUpdateNotification(false)} />

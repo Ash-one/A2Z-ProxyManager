@@ -240,7 +240,9 @@ impl ZaiKeyPool {
         Self::available_indices(&guard.entries, SystemTime::now()).len()
     }
 
-    /// 轮询选择下一个可用 Key。无可用 Key 时返回 None（调用方上抛池空错误）。
+    /// 轮询选择下一个可用 Key。
+    /// 优先选择立即就绪（ApiKey 或新鲜 JWT）的条目；
+    /// 若无立即就绪条目，但存在未失效的 JWT 槽位，则返回该 JWT 槽位以便进入按需等待过码流程。
     pub fn select_key(&self, zai: &ZaiConfig) -> Option<SelectedZaiKey> {
         self.sync_if_needed(zai);
         let guard = self
@@ -248,11 +250,32 @@ impl ZaiKeyPool {
             .read()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         let available = Self::available_indices(&guard.entries, SystemTime::now());
-        if available.is_empty() {
-            return None;
-        }
-        let idx = self.cursor.fetch_add(1, Ordering::Relaxed) % available.len();
-        let entry = &guard.entries[available[idx]];
+        let candidate_index = if !available.is_empty() {
+            let idx = self.cursor.fetch_add(1, Ordering::Relaxed) % available.len();
+            available[idx]
+        } else {
+            // 兜底候选：启用的 JWT 条目（处于 Active 或 CaptchaNeeded 状态，且非 Invalid/Exhausted）
+            let jwt_candidates: Vec<usize> = guard
+                .entries
+                .iter()
+                .enumerate()
+                .filter(|(_, e)| {
+                    e.cfg.enabled
+                        && !e.cfg.key.trim().is_empty()
+                        && (e.status == ZaiKeyStatus::Active
+                            || e.status == ZaiKeyStatus::CaptchaNeeded)
+                        && e.cfg.mode == ZaiKeyMode::Jwt
+                })
+                .map(|(i, _)| i)
+                .collect();
+            if jwt_candidates.is_empty() {
+                return None;
+            }
+            let idx = self.cursor.fetch_add(1, Ordering::Relaxed) % jwt_candidates.len();
+            jwt_candidates[idx]
+        };
+
+        let entry = &guard.entries[candidate_index];
         Some(SelectedZaiKey {
             key: entry.cfg.key.clone(),
             provider: entry.cfg.provider,

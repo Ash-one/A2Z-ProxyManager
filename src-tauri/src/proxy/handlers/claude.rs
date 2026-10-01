@@ -624,8 +624,10 @@ pub async fn handle_messages(
         let m = request.model.to_lowercase();
         m.starts_with("glm-") || m.starts_with("zai:") || m.starts_with("zcode:")
     };
+    let zai_has_keys = !zai.resolved_keys().is_empty();
+    let effective_zai_enabled = zai_enabled || (zai_has_keys && is_glm_model);
 
-    let use_zai = if !zai_enabled {
+    let use_zai = if !effective_zai_enabled {
         false
     } else if is_glm_model {
         // [反代体验最佳化] 当客户端明确请求 GLM 系列模型（如 GLM-5.3-Flash / glm-5.3 等）时，

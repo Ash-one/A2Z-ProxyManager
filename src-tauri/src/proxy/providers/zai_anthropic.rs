@@ -155,7 +155,17 @@ pub async fn forward_anthropic_json(
     use crate::proxy::providers::zai_pool::{ZaiKeyPool, MAX_FAILOVER_ATTEMPTS};
 
     let zai = state.zai.read().await.clone();
-    if !zai.enabled || zai.dispatch_mode == crate::proxy::ZaiDispatchMode::Off {
+    let is_glm_model = body
+        .get("model")
+        .and_then(|v| v.as_str())
+        .map(|m| {
+            let lower = m.to_lowercase();
+            lower.starts_with("glm-") || lower.starts_with("zai:") || lower.starts_with("zcode:")
+        })
+        .unwrap_or(false);
+    let zai_enabled = zai.enabled
+        && (!matches!(zai.dispatch_mode, crate::proxy::ZaiDispatchMode::Off) || is_glm_model);
+    if !zai_enabled {
         return (StatusCode::BAD_REQUEST, "z.ai is disabled").into_response();
     }
 
@@ -227,16 +237,32 @@ pub async fn forward_anthropic_json(
 
         let (url, slot_headers, slot_body_bytes) = if is_plan {
             use crate::proxy::providers::zcode_plan as zplan;
-            let Some(captcha) = zplan::ZcodeCaptchaStore::global().take_fresh(&plan_captcha_key)
-            else {
-                // 无新鲜验证码：不浪费上游请求（防风控消耗），标记并换下一槽位
-                pool.mark_captcha_needed(&zai, &selected.key);
+            let captcha = match zplan::ZcodeCaptchaStore::global().take_fresh(&plan_captcha_key) {
+                Some(c) => Some(c),
+                None => {
+                    // 无新鲜验证码：标记 CaptchaNeeded 并派发求解事件，等待前端无痕解算提交（最多等待 8 秒）
+                    pool.mark_captcha_needed(&zai, &selected.key);
+                    zplan::emit_captcha_needed_event(&selected.account_id, &selected.key);
+                    tracing::info!(
+                        "[zcode T3] plan slot {} waiting for fresh captcha (up to 8s)...",
+                        selected.masked_key
+                    );
+                    zplan::ZcodeCaptchaStore::global()
+                        .wait_fresh(&plan_captcha_key, std::time::Duration::from_secs(8))
+                        .await
+                }
+            };
+
+            let Some(captcha) = captcha else {
                 tracing::warn!(
-                    "[zcode T3] plan slot {} skipped: no fresh captcha param",
+                    "[zcode T3] plan slot {} skipped: no fresh captcha param after wait",
                     selected.masked_key
                 );
                 continue;
             };
+
+            // 成功取得新鲜验证码后恢复为 Active
+            pool.clear_captcha_needed(&zai, &plan_captcha_key);
             let profile = zplan::profile_for_parts(
                 &selected.account_id,
                 &selected.key,
