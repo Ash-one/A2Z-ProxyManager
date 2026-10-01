@@ -18,7 +18,7 @@ A2Z-ProxyManager 的账号池目前只承载 antigravity（Google OAuth）账号
 
 该问题在移除"引入 zcode2api"这一具体方案后依然成立：**本仓库缺乏"订阅类（JWT）上游账号"的池化管理入口**。
 
-## 2. 提案方向（分三阶段）
+## 2. 提案方向（分四阶段）
 
 全部代码**净室重实现**：zcode2api 为 AGPL-3.0，本仓库为 CC-BY-NC-SA-4.0，代码零搬运；仅以协议事实（端点、头部、状态码语义）为规格来源。
 
@@ -47,7 +47,13 @@ A2Z-ProxyManager 的账号池目前只承载 antigravity（Google OAuth）账号
 - ✅ Plan 额度查询：手动按需查询 `billing/balance`（PlanSlot 各模型额度），前端优雅解析展示；
 - ✅ 模型名大小写敏感规范化：通配分段算法（`canonicalize_plan_model`），自动处理 `glm-5.3-flash → GLM-5.3-Flash`、`glm-4.6v → GLM-4.6V` 等。
 
+### T4 — 订阅账号管理升格为独立页面（⏳ Working Proposal：`proposal-t4-page.md`）
+
+- 独立顶级导航页「ZCode 账号」（`/zcode-accounts`）：整池搬迁（API Key 池 + OAuth + 导入 + JWT + 过码 + 额度 + 领取）+ 卡片栅格重构，ApiProxy z.ai 卡瘦身保留 dispatcher 配置；数据层零改动（`proxy.zai.keys` / `ZaiKeyPool` / 命令与 web 路由原样）；
+- **取代 T2 决策 #3「UI 留在 z.ai 设置卡内、Accounts 页接入留后续」**（用户重新评估后反转）；§3 表中「前端 Accounts 接入留后续」行由本阶段闭案为"不合并进 Accounts 页"。
+
 ## 3. 受影响的所有权边界
+
 
 | 表面 | 变更 | 不变量 |
 |---|---|---|
