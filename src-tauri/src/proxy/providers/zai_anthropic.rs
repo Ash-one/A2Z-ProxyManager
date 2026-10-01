@@ -241,16 +241,24 @@ pub async fn forward_anthropic_json(
             let captcha = match zplan::ZcodeCaptchaStore::global().take_fresh(&plan_captcha_key) {
                 Some(c) => Some(c),
                 None => {
-                    // 无新鲜验证码：标记 CaptchaNeeded 并派发求解事件，等待前端无痕解算提交（最多等待 15 秒）
+                    // 无新鲜验证码：先尝试通过本地 Node 求解器极速求解（~500ms），
+                    // 同时派发前端事件并支持 wait_fresh 等待
                     pool.mark_captcha_needed(&zai, &selected.key);
                     zplan::emit_captcha_needed_event(&selected.account_id, &selected.key);
-                    tracing::info!(
-                        "[zcode T3] plan slot {} waiting for fresh captcha (up to 15s)...",
-                        selected.masked_key
-                    );
-                    zplan::ZcodeCaptchaStore::global()
-                        .wait_fresh(&plan_captcha_key, std::time::Duration::from_secs(15))
-                        .await
+
+                    if let Some(c) =
+                        zplan::solve_captcha_via_node(&selected.account_id, &selected.key).await
+                    {
+                        Some(c)
+                    } else {
+                        tracing::info!(
+                            "[zcode T3] plan slot {} waiting for fresh captcha (up to 15s)...",
+                            selected.masked_key
+                        );
+                        zplan::ZcodeCaptchaStore::global()
+                            .wait_fresh(&plan_captcha_key, std::time::Duration::from_secs(15))
+                            .await
+                    }
                 }
             };
 
@@ -270,15 +278,22 @@ pub async fn forward_anthropic_json(
                 &selected.key,
                 &selected.device_profile,
             );
-            // Plan 通道模型名大小写敏感：通配规则规范化（幂等）
+            // Plan 通道反风控变换：注入官方 system 块、metadata.user_id 及 cache_control
             let mut plan_body = body.clone();
-            if let Some(m) = plan_body
+            let model_str = plan_body
                 .get("model")
                 .and_then(|v| v.as_str())
-                .map(str::to_string)
-            {
-                plan_body["model"] = Value::String(zplan::canonicalize_plan_model(&m));
-            }
+                .unwrap_or("GLM-5.3-Flash")
+                .to_string();
+            let user_id = {
+                let uid = zplan::jwt_user_id(&selected.key);
+                if uid.is_empty() {
+                    selected.account_id.clone()
+                } else {
+                    uid
+                }
+            };
+            zplan::transform_plan_request_body(&mut plan_body, &model_str, &user_id);
             let bytes = serde_json::to_vec(&plan_body).unwrap_or_default();
             let url = zplan::plan_request_url(path);
             let headers = zplan::build_plan_headers(

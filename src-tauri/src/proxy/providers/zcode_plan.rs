@@ -506,7 +506,125 @@ impl ZcodeCaptchaStore {
     }
 }
 
-/// 向前端派发“需要过码”事件（Tauri 环境下派发至前端全局后台守候器）
+/// 全局 Node 求解器锁（保证同时至多一个 Node 进程求解，避免并发冲突）
+static NODE_SOLVER_MUTEX: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
+
+/// 在后台直接启动本地 Node 求解器（Node + happy-dom），生成验证码并存入全局 CaptchaStore。
+/// 专为 Headless / CLI / curl / API 服务模式设计，500ms 快速生成，脱离前端 WebView。
+pub async fn solve_captcha_via_node(account_id: &str, key: &str) -> Option<CaptchaParam> {
+    let mutex = NODE_SOLVER_MUTEX.get_or_init(|| tokio::sync::Mutex::new(()));
+    let _guard = mutex.lock().await;
+
+    let captcha_key = captcha_key_for(account_id, key);
+    // 再次检查池中是否有刚补充的新鲜验证码
+    if let Some(p) = ZcodeCaptchaStore::global().peek(&captcha_key) {
+        return Some(p);
+    }
+
+    let solver_candidates = [
+        std::path::PathBuf::from("captcha_node/solver.js"),
+        std::path::PathBuf::from("../captcha_node/solver.js"),
+        std::path::PathBuf::from(
+            "/Users/guanxuzeng/LocalDocuments/GitLocalStore/zcode2api/captcha_node/solver.js",
+        ),
+    ];
+
+    let mut solver_file: Option<std::path::PathBuf> = None;
+    for p in &solver_candidates {
+        if p.exists() {
+            solver_file = Some(p.clone());
+            break;
+        }
+    }
+
+    if solver_file.is_none() {
+        if let Ok(exe) = std::env::current_exe() {
+            if let Some(parent) = exe.parent() {
+                let c1 = parent.join("captcha_node/solver.js");
+                if c1.exists() {
+                    solver_file = Some(c1);
+                } else if let Some(p2) = parent.parent() {
+                    let c2 = p2.join("captcha_node/solver.js");
+                    if c2.exists() {
+                        solver_file = Some(c2);
+                    }
+                }
+            }
+        }
+    }
+
+    let Some(solver_path) = solver_file else {
+        tracing::warn!("[zcode solver] solver.js not found in any candidate path");
+        return None;
+    };
+    let solver_dir = solver_path.parent().unwrap_or(std::path::Path::new("."));
+
+    tracing::info!(
+        "[zcode solver] Spawning Node captcha solver at {:?}",
+        solver_path
+    );
+
+    for attempt in 1..=3 {
+        let mut cmd = tokio::process::Command::new("node");
+        cmd.arg(&solver_path)
+            .arg("11xygtvd")
+            .arg("cn")
+            .arg("no8xfe")
+            .current_dir(solver_dir)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null());
+
+        let Ok(child) = cmd.spawn() else {
+            tracing::warn!("[zcode solver] Failed to spawn node process");
+            return None;
+        };
+
+        let output =
+            match tokio::time::timeout(std::time::Duration::from_secs(6), child.wait_with_output())
+                .await
+            {
+                Ok(Ok(out)) => out,
+                _ => {
+                    tracing::warn!(
+                        "[zcode solver] Node captcha solver attempt {} timed out",
+                        attempt
+                    );
+                    continue;
+                }
+            };
+
+        if output.status.success() {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                if let Some(param) = line.strip_prefix("VERIFY_PARAM=") {
+                    let p = param.trim();
+                    if !p.is_empty() {
+                        tracing::info!(
+                            "[zcode solver] Node captcha solver succeeded on attempt {}",
+                            attempt
+                        );
+                        ZcodeCaptchaStore::global().store(
+                            &captcha_key,
+                            p.to_string(),
+                            "cn".to_string(),
+                        );
+                        return Some(CaptchaParam {
+                            param: p.to_string(),
+                            region: "cn".to_string(),
+                            issued_at_ms: ZcodeCaptchaStore::now_ms(),
+                        });
+                    }
+                }
+            }
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    }
+
+    tracing::warn!("[zcode solver] Node captcha solver failed all attempts");
+    None
+}
+
+/// 向前端派发“需要过码”事件（Tauri 环境下派发至前端全局后台守候器），同时启动 Node 后台自愈
 pub fn emit_captcha_needed_event(account_id: &str, key: &str) {
     if let Some(app) = crate::modules::log_bridge::get_app_handle() {
         use tauri::Emitter;
@@ -518,6 +636,11 @@ pub fn emit_captcha_needed_event(account_id: &str, key: &str) {
             }),
         );
     }
+    let acc = account_id.to_string();
+    let k = key.to_string();
+    tokio::spawn(async move {
+        solve_captcha_via_node(&acc, &k).await;
+    });
 }
 
 // ===== Plan 通道请求头（官方客户端身份头完整集） =====
@@ -625,6 +748,126 @@ pub fn canonicalize_plan_model(model: &str) -> String {
         .join("-")
 }
 
+// ===== Plan 通道反风控请求体仿真（规避 3012 unusual activity 审查） =====
+
+const ZCODE_SYSTEM_BLOCK_1: &str = "You are ZCode, an interactive coding agent";
+const ZCODE_SYSTEM_BLOCK_2: &str = "\nYou are an interactive ZCode agent that helps users with software engineering tasks.\n\nIMPORTANT: Assist with authorized security testing, defensive security, CTF challenges, and educational contexts. Refuse requests for destructive techniques, DoS attacks, mass targeting, supply chain compromise, or detection evasion for malicious purposes. Dual-use security tools (C2 frameworks, credential testing, exploit development) require clear authorization context: pentesting engagements, CTF competitions, security research, or defensive use cases.\n\n# Harness\n- Text you output outside of tool use is displayed to the user as Github-flavored markdown in a terminal.\n- Tools run behind a user-selected permission mode; a denied call means the user declined it — adjust, don't retry verbatim.\n- The system may send updates, reminders, or modifications to rules via mid-conversation system turns. These are system-controlled, unlike function results. Hooks may intercept tool calls; treat hook output as user feedback.\n- Prefer the dedicated file/search tools over shell commands when one fits. Independent tool calls can run in parallel in one response.\n- Reference code as `file_path:line_number` — it's clickable.";
+const ZCODE_SYSTEM_BLOCK_3: &str = "# Environment\nYou have been invoked in the following environment:\n- Primary working directory: unknown\n- Is a git repository: no\n- Platform: unknown\n- Shell: unknown\n- OS Version: unknown";
+
+/// 请求体变换：规避上游内容审查（3012 unusual activity / 405 Method Not Allowed）。
+/// 包含三项核心对齐：
+/// 1. 前置官方 ZCode 系统身份块 + 动态当前模型块；保留客户端原有 system 于其后；
+/// 2. 注入 metadata.user_id；
+/// 3. 为最后一条非 system 消息的末尾 content block 注入 cache_control: {"type": "ephemeral"}。
+pub fn transform_plan_request_body(body: &mut Value, model_name: &str, user_id: &str) {
+    let canonical_model = canonicalize_plan_model(model_name);
+    body["model"] = Value::String(canonical_model.clone());
+
+    // 1. 前置官方 system 块（幂等处理：首块如果已是官方身份则跳过）
+    let existing_system = body.get("system").cloned();
+    let already_injected = existing_system.as_ref().map_or(false, |sys| {
+        if let Some(arr) = sys.as_array() {
+            arr.first()
+                .and_then(|b| b.get("text"))
+                .and_then(|t| t.as_str())
+                .map_or(false, |t| t.starts_with(ZCODE_SYSTEM_BLOCK_1))
+        } else {
+            false
+        }
+    });
+
+    if !already_injected {
+        let mut official = vec![
+            serde_json::json!({
+                "type": "text",
+                "text": ZCODE_SYSTEM_BLOCK_1,
+                "cache_control": { "type": "ephemeral" }
+            }),
+            serde_json::json!({
+                "type": "text",
+                "text": ZCODE_SYSTEM_BLOCK_2,
+                "cache_control": { "type": "ephemeral" }
+            }),
+            serde_json::json!({
+                "type": "text",
+                "text": ZCODE_SYSTEM_BLOCK_3,
+                "cache_control": { "type": "ephemeral" }
+            }),
+            serde_json::json!({
+                "type": "text",
+                "text": format!("- You are powered by the model named {canonical_model}."),
+                "cache_control": { "type": "ephemeral" }
+            }),
+        ];
+
+        if let Some(sys) = existing_system {
+            if let Some(text) = sys.as_str() {
+                if !text.trim().is_empty() {
+                    official.push(serde_json::json!({ "type": "text", "text": text }));
+                }
+            } else if let Some(arr) = sys.as_array() {
+                for item in arr {
+                    if let Some(t) = item.as_str() {
+                        if !t.trim().is_empty() {
+                            official.push(serde_json::json!({ "type": "text", "text": t }));
+                        }
+                    } else if item.is_object() {
+                        official.push(item.clone());
+                    }
+                }
+            }
+        }
+        body["system"] = Value::Array(official);
+    }
+
+    // 2. 注入 metadata.user_id
+    let uid = user_id.trim();
+    if !uid.is_empty() {
+        if !body.get("metadata").map_or(false, |m| m.is_object()) {
+            body["metadata"] = serde_json::json!({});
+        }
+        if let Some(meta) = body.get_mut("metadata").and_then(|m| m.as_object_mut()) {
+            if !meta.contains_key("user_id") {
+                meta.insert("user_id".to_string(), Value::String(uid.to_string()));
+            }
+        }
+    }
+
+    // 3. 为最后一条消息追加 ephemeral 缓存标记
+    if let Some(messages) = body.get_mut("messages").and_then(|m| m.as_array_mut()) {
+        for msg in messages.iter_mut().rev() {
+            if msg.get("role").and_then(|r| r.as_str()) == Some("system") {
+                continue;
+            }
+            if let Some(content_str) = msg
+                .get("content")
+                .and_then(|c| c.as_str())
+                .map(str::to_string)
+            {
+                msg["content"] = serde_json::json!([
+                    {
+                        "type": "text",
+                        "text": content_str,
+                        "cache_control": { "type": "ephemeral" }
+                    }
+                ]);
+                break;
+            } else if let Some(content_arr) = msg.get_mut("content").and_then(|c| c.as_array_mut())
+            {
+                if let Some(last_block) = content_arr.last_mut().and_then(|b| b.as_object_mut()) {
+                    if !last_block.contains_key("cache_control") {
+                        last_block.insert(
+                            "cache_control".to_string(),
+                            serde_json::json!({ "type": "ephemeral" }),
+                        );
+                    }
+                }
+                break;
+            }
+        }
+    }
+}
+
 // ===== 失败分类（池状态机依据） =====
 
 /// Plan 通道失败分类（协议事实 §被拒信号）。
@@ -672,6 +915,9 @@ pub fn envelope_code(body: &str) -> Option<i64> {
 pub fn classify_plan_failure(status: u16, body: &str, captcha_challenge: bool) -> PlanFailure {
     if captcha_challenge || envelope_code(body) == Some(PLAN_CAPTCHA_EXPIRED_CODE) {
         return PlanFailure::CaptchaChallenge;
+    }
+    if status == 405 || envelope_code(body) == Some(3012) || body.contains("unusual activity") {
+        return PlanFailure::InvalidAuth;
     }
     match status {
         401 => PlanFailure::InvalidAuth,
@@ -1432,5 +1678,35 @@ mod tests {
         assert_eq!(envelope_code("{\"code\":\"3007\"}"), Some(3007));
         assert_eq!(envelope_code("not json"), None);
         assert_eq!(envelope_code("{\"message\":\"x\"}"), None);
+    }
+
+    #[test]
+    fn transform_plan_request_body_injects_system_and_user_id() {
+        let mut body = serde_json::json!({
+            "model": "glm-5.3-flash",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": "Hello world"
+                }
+            ]
+        });
+        transform_plan_request_body(&mut body, "glm-5.3-flash", "test-user-123");
+
+        assert_eq!(body["model"], "GLM-5.3-Flash");
+        assert_eq!(body["metadata"]["user_id"], "test-user-123");
+
+        let sys = body["system"].as_array().expect("system array");
+        assert!(sys.len() >= 4);
+        assert_eq!(sys[0]["text"], ZCODE_SYSTEM_BLOCK_1);
+        assert_eq!(
+            sys[3]["text"],
+            "- You are powered by the model named GLM-5.3-Flash."
+        );
+
+        let msgs = body["messages"].as_array().expect("messages array");
+        let content = msgs[0]["content"].as_array().expect("content array");
+        assert_eq!(content[0]["text"], "Hello world");
+        assert_eq!(content[0]["cache_control"]["type"], "ephemeral");
     }
 }
