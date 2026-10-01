@@ -14,8 +14,6 @@ import {
     Terminal,
     Trash2,
     BrainCircuit,
-    Puzzle,
-    Zap,
     ArrowRight,
     Sparkles,
     Code,
@@ -23,7 +21,10 @@ import {
     X,
     Edit2,
     Save,
-    Share2
+    Share2,
+    Bot,
+    Zap,
+    Puzzle
 } from 'lucide-react';
 import { AppConfig, ProxyConfig, StickySessionConfig, ExperimentalConfig } from '../types/config';
 import HelpTooltip from '../components/common/HelpTooltip';
@@ -34,12 +35,13 @@ import { useProxyModels } from '../hooks/useProxyModels';
 import GroupedSelect, { SelectOption } from '../components/common/GroupedSelect';
 import { CliSyncCard } from '../components/proxy/CliSyncCard';
 import { ZaiKeyPoolEditor } from '../components/proxy/ZaiKeyPoolEditor';
-import DebouncedSlider from '../components/common/DebouncedSlider';
 import { listAccounts } from '../services/accountService';
 import CircuitBreaker from '../components/settings/CircuitBreaker';
 import GlobalSystemPrompt from '../components/settings/GlobalSystemPrompt';
 import ImageThinkingMode from '../components/settings/ImageThinkingMode';
 import ThinkingBudget from '../components/settings/ThinkingBudget';
+import MultimodalSettings from '../components/settings/MultimodalSettings';
+import AgentSettings from '../components/settings/AgentSettings';
 import { CircuitBreakerConfig } from '../types/config';
 
 interface ProxyStatus {
@@ -160,13 +162,13 @@ export default function ApiProxy() {
     });
 
     const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
-    const [activeMenuTab, setActiveMenuTab] = useState<'settings' | 'cli' | 'protocols'>('settings');
+    const [activeMenuTab, setActiveMenuTab] = useState<'settings' | 'models' | 'cli' | 'protocols'>('settings');
     const [configLoading, setConfigLoading] = useState(true);
     const [configError, setConfigError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState<string | null>(null);
     const [selectedProtocol, setSelectedProtocol] = useState<'openai' | 'anthropic' | 'gemini'>('openai');
-    const [selectedModelId, setSelectedModelId] = useState('gemini-3-flash');
+    const [selectedModelId, setSelectedModelId] = useState('gemini-3.8-flash-tiered');
     const [customMappingValue, setCustomMappingValue] = useState(''); // 自定义映射表单的选中值
     const [editingKey, setEditingKey] = useState<string | null>(null);
     const [editingValue, setEditingValue] = useState<string>('');
@@ -507,9 +509,6 @@ export default function ApiProxy() {
         const newConfig = {
             ...appConfig.proxy,
             custom_mapping: {
-                "gemini-3.6-flash": "gemini-3.6-flash-tiered",
-                "gemini-3.7-flash": "gemini-3.7-flash-tiered",
-                "gemini-3.8-flash": "gemini-3.8-flash-tiered",
                 "gemini-3.x-flash": "3.x-flash-tiered",
             }
         };
@@ -532,12 +531,9 @@ export default function ApiProxy() {
             name: t('proxy.router.preset_default'),
             description: t('proxy.router.preset_default_desc'),
             mappings: {
-                "gemini-3.6-flash": "gemini-3.6-flash-tiered",
-                "gemini-3.7-flash": "gemini-3.7-flash-tiered",
-                "gemini-3.8-flash": "gemini-3.8-flash-tiered",
                 "gemini-3.x-flash": "3.x-flash-tiered",
                 "gpt-4*": "gemini-3.1-pro-high",
-                "gpt-4o*": "gemini-3-flash",
+                "gpt-4o*": "gemini-3.8-flash-high",
                 "gpt-3.5*": "gemini-2.5-flash",
                 "o1-*": "gemini-3.1-pro-high",
                 "o3-*": "gemini-3.1-pro-high",
@@ -555,7 +551,7 @@ export default function ApiProxy() {
             mappings: {
                 "gpt-4*": "claude-opus-4-6-thinking",
                 "gpt-4o*": "claude-sonnet-4-6",
-                "gpt-3.5*": "gemini-3-flash",
+                "gpt-3.5*": "gemini-3.8-flash-tiered",
                 "o1-*": "claude-opus-4-6-thinking",
                 "o3-*": "claude-opus-4-6-thinking",
                 "claude-3-5-sonnet-*": "claude-sonnet-4-6",
@@ -570,14 +566,14 @@ export default function ApiProxy() {
             name: t('proxy.router.preset_cost'),
             description: t('proxy.router.preset_cost_desc'),
             mappings: {
-                "gpt-4*": "gemini-3-flash",
+                "gpt-4*": "gemini-3.8-flash-high",
                 "gpt-4o*": "gemini-2.5-flash",
                 "gpt-3.5*": "gemini-2.5-flash",
-                "o1-*": "gemini-3-flash",
-                "o3-*": "gemini-3-flash",
-                "claude-3-5-sonnet-*": "gemini-3-flash",
-                "claude-3-opus-*": "gemini-3-flash",
-                "claude-opus-4-*": "gemini-3-flash", // Cost-effective: map all opus 4 to flash
+                "o1-*": "gemini-3.8-flash-high",
+                "o3-*": "gemini-3.8-flash-high",
+                "claude-3-5-sonnet-*": "gemini-3.8-flash-high",
+                "claude-3-opus-*": "gemini-3.8-flash-high",
+                "claude-opus-4-*": "gemini-3.8-flash-high",
                 "claude-haiku-*": "gemini-2.5-flash",
                 "claude-3-haiku-*": "gemini-2.5-flash",
             }
@@ -588,14 +584,14 @@ export default function ApiProxy() {
             description: t('proxy.router.preset_balanced_desc'),
             mappings: {
                 "gpt-4*": "gemini-3.1-pro-high",
-                "gpt-4o*": "gemini-3-flash",
+                "gpt-4o*": "gemini-3.8-flash-high",
                 "gpt-3.5*": "gemini-2.5-flash",
                 "o1-*": "claude-sonnet-4-6",
                 "o3-*": "claude-sonnet-4-6",
                 "claude-3-5-sonnet-*": "claude-sonnet-4-6",
                 "claude-3-opus-*": "gemini-3.1-pro-high",
                 "claude-opus-4-5*": "gemini-3.1-pro-high",
-                "claude-opus-4-6*": "claude-opus-4-6-thinking", // Balanced: Keep 4.6 as itself (or map to high?) Let's map to itself for now to utilize header
+                "claude-opus-4-6*": "claude-opus-4-6-thinking",
                 "claude-haiku-*": "gemini-2.5-flash",
                 "claude-3-haiku-*": "gemini-2.5-flash",
             }
@@ -746,10 +742,7 @@ export default function ApiProxy() {
                 ...appConfig.proxy,
                 experimental: {
                     ...(appConfig.proxy.experimental || {
-                        enable_usage_scaling: true,
-                        context_compression_threshold_l1: 0.4,
-                        context_compression_threshold_l2: 0.55,
-                        context_compression_threshold_l3: 0.7
+                        enable_usage_scaling: false,
                     }),
                     ...updates
                 }
@@ -1583,6 +1576,18 @@ print(response.choices[0].message.content)`;
                                 </button>
                                 <button
                                     type="button"
+                                    onClick={() => setActiveMenuTab('models')}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                                        activeMenuTab === 'models'
+                                            ? 'bg-white dark:bg-base-100 text-blue-600 dark:text-blue-400 shadow-xs'
+                                            : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                                    }`}
+                                >
+                                    <BrainCircuit size={14} className={activeMenuTab === 'models' ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400'} />
+                                    {t('proxy.model_config.title', { defaultValue: '模型配置' })}
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={() => setActiveMenuTab('cli')}
                                     className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
                                         activeMenuTab === 'cli'
@@ -2042,6 +2047,65 @@ print(response.choices[0].message.content)`;
                             </div>
                         )}
 
+                        {/* TAB: 模型配置 (models) */}
+                        {activeMenuTab === 'models' && (
+                            <div className="p-4 space-y-4">
+                                {/* 思考设置 (Thinking & Reasoning Settings) - 默认收起 */}
+                                <CollapsibleCard
+                                    title={t('proxy.config.thinking_settings.title', { defaultValue: '思考设置 (Thinking Settings)' })}
+                                    icon={<BrainCircuit size={18} className="text-purple-500" />}
+                                    defaultExpanded={false}
+                                >
+                                    <ThinkingBudget
+                                        config={appConfig.proxy.thinking_budget}
+                                        onChange={(tbConfig) => updateProxyConfig({ thinking_budget: tbConfig })}
+                                        onSave={handleSaveProxySettings}
+                                        thinkingStoreEnabled={appConfig.proxy.experimental?.thinking_store_enabled !== false}
+                                        onThinkingStoreChange={(enabled) =>
+                                            updateExperimentalConfig({ thinking_store_enabled: enabled })
+                                        }
+                                        thinkingMaxMemoryTurns={appConfig.proxy.experimental?.thinking_max_memory_turns ?? 600}
+                                        onThinkingMaxMemoryTurnsChange={(turns: number) =>
+                                            updateExperimentalConfig({ thinking_max_memory_turns: turns })
+                                        }
+                                        thinkingRetentionDays={appConfig.proxy.experimental?.thinking_retention_days ?? 15}
+                                        onThinkingRetentionDaysChange={(days: number) =>
+                                            updateExperimentalConfig({ thinking_retention_days: days })
+                                        }
+                                    />
+                                </CollapsibleCard>
+
+                                {/* 多模态交互设置 (Multimodal Settings) - 默认收起 */}
+                                <CollapsibleCard
+                                    title={t('proxy.config.multimodal_settings.title', { defaultValue: '多模态交互设置 (Multimodal Settings)' })}
+                                    icon={<Sparkles size={18} className="text-pink-500" />}
+                                    defaultExpanded={false}
+                                >
+                                    <MultimodalSettings
+                                        config={appConfig.proxy.multimodal}
+                                        onChange={(mConfig) => updateProxyConfig({ multimodal: mConfig })}
+                                        onSave={handleSaveProxySettings}
+                                    />
+                                </CollapsibleCard>
+
+                                {/* 特定 Agent 特性配置 (Specific Agent Settings) - 默认收起 */}
+                                <CollapsibleCard
+                                    title={t('proxy.config.agent_settings.title', { defaultValue: '特定 Agent 配置 (Specific Agent Settings)' })}
+                                    icon={<Bot size={18} className="text-cyan-500" />}
+                                    defaultExpanded={false}
+                                >
+                                    <AgentSettings
+                                        experimentalConfig={appConfig.proxy.experimental}
+                                        onChange={updateExperimentalConfig}
+                                        onSave={handleSaveProxySettings}
+                                    />
+                                </CollapsibleCard>
+
+                                {/* 模型路由中心 紧随其后 */}
+                                {renderModelRouterSection()}
+                            </div>
+                        )}
+
                         {/* TAB 2: CLI 一键配置 (cli) */}
                         {activeMenuTab === 'cli' && (
                             <div className="p-4">
@@ -2068,34 +2132,6 @@ print(response.choices[0].message.content)`;
                 {
                     !configLoading && !configError && appConfig && activeMenuTab === 'settings' && (
                         <div className="space-y-4">
-                            {/* 思考设置 (Thinking & Reasoning Settings) */}
-                            <CollapsibleCard
-                                title={t('proxy.config.thinking_settings.title', { defaultValue: '思考设置 (Thinking Settings)' })}
-                                icon={<BrainCircuit size={18} className="text-purple-500" />}
-                                defaultExpanded={true}
-                            >
-                                <ThinkingBudget
-                                    config={appConfig.proxy.thinking_budget}
-                                    onChange={(tbConfig) => updateProxyConfig({ thinking_budget: tbConfig })}
-                                    onSave={handleSaveProxySettings}
-                                    thinkingStoreEnabled={appConfig.proxy.experimental?.thinking_store_enabled !== false}
-                                    onThinkingStoreChange={(enabled) =>
-                                        updateExperimentalConfig({ thinking_store_enabled: enabled })
-                                    }
-                                    thinkingMaxMemoryTurns={appConfig.proxy.experimental?.thinking_max_memory_turns ?? 600}
-                                    onThinkingMaxMemoryTurnsChange={(turns: number) =>
-                                        updateExperimentalConfig({ thinking_max_memory_turns: turns })
-                                    }
-                                    thinkingRetentionDays={appConfig.proxy.experimental?.thinking_retention_days ?? 15}
-                                    onThinkingRetentionDaysChange={(days: number) =>
-                                        updateExperimentalConfig({ thinking_retention_days: days })
-                                    }
-                                />
-                            </CollapsibleCard>
-
-                            {/* 模型路由中心 紧随思考设置之后 */}
-                            {renderModelRouterSection()}
-
                             {/* z.ai (GLM) Dispatcher */}
                             <CollapsibleCard
                                 title={t('proxy.config.zai.title')}
@@ -2392,111 +2428,6 @@ print(response.choices[0].message.content)`;
                                             onChange={(newConfig) => updateProxyConfig({ global_system_prompt: newConfig })}
                                         />
                                     </div>
-                                </div>
-                            </CollapsibleCard>
-
-                            {/* 实验性设置 */}
-                            <CollapsibleCard
-                                title={t('proxy.config.experimental.title')}
-                                icon={<Sparkles size={18} className="text-purple-500" />}
-                            >
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-base-200 rounded-xl border border-gray-100 dark:border-base-300">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-bold text-gray-900 dark:text-base-content">
-                                                    {t('proxy.config.experimental.compression_level_label', { defaultValue: '智能上下文压缩等级' })}
-                                                </span>
-                                                <HelpTooltip text={t('proxy.config.experimental.compression_level_tooltip', { defaultValue: '选择您希望启用的压缩等级。静态降噪与口语提纯不需要达到 30k 即可常驻生效。' })} />
-                                                <span className="px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/30 text-[10px] text-indigo-600 dark:text-indigo-400 font-bold border border-indigo-200 dark:border-indigo-800">
-                                                    All Protocols
-                                                </span>
-                                            </div>
-                                            <p className="text-[10px] text-gray-500 dark:text-gray-400 max-w-lg">
-                                                {t('proxy.config.experimental.compression_level_desc', { defaultValue: '选择不同的压缩方案：Low 仅终端日志降噪；Medium 在此基础上增加口语净化；High 额外开启大上下文分阶段防御重置。' })}
-                                            </p>
-                                        </div>
-                                        <select
-                                            className="select select-sm select-bordered w-48 text-xs font-normal focus:outline-none dark:bg-base-300 dark:text-base-content border-gray-200 dark:border-base-400"
-                                            value={appConfig.proxy.experimental?.compression_level || (appConfig.proxy.experimental?.enable_usage_scaling ? 'high' : 'disabled')}
-                                            onChange={(e) => {
-                                                const val = e.target.value;
-                                                updateExperimentalConfig({
-                                                    compression_level: val,
-                                                    enable_usage_scaling: val === 'high'
-                                                });
-                                            }}
-                                        >
-                                            <option value="disabled" className="text-xs dark:bg-base-300">{t('proxy.config.experimental.level_disabled', { defaultValue: '关闭 (Disabled)' })}</option>
-                                            <option value="low" className="text-xs dark:bg-base-300">{t('proxy.config.experimental.level_low', { defaultValue: '低度 (Low - 日志降噪)' })}</option>
-                                            <option value="medium" className="text-xs dark:bg-base-300">{t('proxy.config.experimental.level_medium', { defaultValue: '中度 (Medium - 日志+口语)' })}</option>
-                                            <option value="high" className="text-xs dark:bg-base-300">{t('proxy.config.experimental.level_high', { defaultValue: '高度 (High - 动态防暴)' })}</option>
-                                        </select>
-                                    </div>
-
-                                    {((appConfig.proxy.experimental?.compression_level || (appConfig.proxy.experimental?.enable_usage_scaling ? 'high' : 'disabled')) === 'high') && (
-                                        <>
-                                            {/* L1 Threshold */}
-                                            <div className="flex flex-col gap-2 p-4 bg-gray-50 dark:bg-base-200 rounded-xl border border-gray-100 dark:border-base-300">
-                                                <div className="flex items-center justify-between w-full">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-bold text-gray-900 dark:text-base-content">
-                                                            {t('proxy.config.experimental.context_compression_threshold_l1')}
-                                                        </span>
-                                                        <HelpTooltip text={t('proxy.config.experimental.context_compression_threshold_l1_tooltip')} />
-                                                    </div>
-                                                </div>
-                                                <DebouncedSlider
-                                                    min={0.1}
-                                                    max={1}
-                                                    step={0.05}
-                                                    className="range range-purple range-xs"
-                                                    value={appConfig.proxy.experimental?.context_compression_threshold_l1 || 0.4}
-                                                    onChange={(val) => updateExperimentalConfig({ context_compression_threshold_l1: val })}
-                                                />
-                                            </div>
-
-                                            {/* L2 Threshold */}
-                                            <div className="flex flex-col gap-2 p-4 bg-gray-50 dark:bg-base-200 rounded-xl border border-gray-100 dark:border-base-300">
-                                                <div className="flex items-center justify-between w-full">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-bold text-gray-900 dark:text-base-content">
-                                                            {t('proxy.config.experimental.context_compression_threshold_l2')}
-                                                        </span>
-                                                        <HelpTooltip text={t('proxy.config.experimental.context_compression_threshold_l2_tooltip')} />
-                                                    </div>
-                                                </div>
-                                                <DebouncedSlider
-                                                    min={0.1}
-                                                    max={1}
-                                                    step={0.05}
-                                                    className="range range-purple range-xs"
-                                                    value={appConfig.proxy.experimental?.context_compression_threshold_l2 || 0.55}
-                                                    onChange={(val) => updateExperimentalConfig({ context_compression_threshold_l2: val })}
-                                                />
-                                            </div>
-
-                                            {/* L3 Threshold */}
-                                            <div className="flex flex-col gap-2 p-4 bg-gray-50 dark:bg-base-200 rounded-xl border border-gray-100 dark:border-base-300">
-                                                <div className="flex items-center justify-between w-full">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-sm font-bold text-gray-900 dark:text-base-content">
-                                                            {t('proxy.config.experimental.context_compression_threshold_l3')}
-                                                        </span>
-                                                        <HelpTooltip text={t('proxy.config.experimental.context_compression_threshold_l3_tooltip')} />
-                                                    </div>
-                                                </div>
-                                                <DebouncedSlider
-                                                    min={0.1}
-                                                    max={1}
-                                                    step={0.05}
-                                                    className="range range-purple range-xs"
-                                                    value={appConfig.proxy.experimental?.context_compression_threshold_l3 || 0.7}
-                                                    onChange={(val) => updateExperimentalConfig({ context_compression_threshold_l3: val })}
-                                                />
-                                            </div>
-                                        </>
-                                    )}
                                 </div>
                             </CollapsibleCard>
 

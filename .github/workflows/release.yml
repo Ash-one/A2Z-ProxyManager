@@ -210,6 +210,36 @@ jobs:
             sed -i '' "s/Antigravity%20Tools.app.tar.gz/Antigravity%20Tools_${ARCH}.app.tar.gz/g" "$UPDATER_JSON"
           fi
 
+      # 4. 确保 Linux AppImage 包含标准 .DirIcon (解决 AppImageHub FATAL: .DirIcon is missing)
+      - name: Verify and ensure AppImage .DirIcon compliance
+        if: startsWith(matrix.platform, 'ubuntu')
+        run: |
+          for appimage in src-tauri/target/*/release/bundle/appimage/*.AppImage; do
+            if [ -f "$appimage" ]; then
+              echo "Inspecting AppImage: $appimage"
+              chmod +x "$appimage"
+              # 提取 AppImage 检查根目录
+              TMP_EXTRACT=$(mktemp -d)
+              "$appimage" --appimage-extract > /dev/null 2>&1 || true
+              if [ -d "squashfs-root" ]; then
+                if [ ! -e "squashfs-root/.DirIcon" ] || [ ! -s "squashfs-root/.DirIcon" ]; then
+                  echo "Warning: .DirIcon missing or broken in $appimage root! Fixing with icon.png..."
+                  cp src-tauri/icons/icon.png squashfs-root/.DirIcon
+                  # 使用 appimagetool 重新封包确保符合 AppImageHub 规范
+                  if command -v appimagetool >/dev/null 2>&1; then
+                    appimagetool squashfs-root "$appimage"
+                  elif [ -f "$HOME/.local/bin/appimagetool" ]; then
+                    "$HOME/.local/bin/appimagetool" squashfs-root "$appimage"
+                  fi
+                else
+                  echo "Verified: .DirIcon is present in $appimage."
+                fi
+                rm -rf squashfs-root
+              fi
+              rm -rf "$TMP_EXTRACT"
+            fi
+          done
+
       # 1. 上传 updater.json 到 Artifacts (供后续合并使用)
       - name: Upload updater json
         uses: actions/upload-artifact@v4
@@ -264,7 +294,7 @@ jobs:
           echo "Extracting release notes for version $VERSION"
           # 版本串按字面匹配 (index 比较，正则元字符不参与解释)，且要求其后紧跟空白，
           # 确保与 CHANGELOG 标题逐字符对齐，避免 v4.7.14 命中 v4.7.14-beta 等同基线条目。
-          awk -v ver="$VERSION" '
+          EXTRACT_AWK='
             BEGIN { capture = 0; needle = "**" ver }
             {
               if (capture && $0 ~ /^[[:space:]]*[*+-][[:space:]]+\*\*v/) exit
@@ -278,7 +308,29 @@ jobs:
               }
             }
             capture { print }
-          ' CHANGELOG.md | sed 's/^[[:space:]]\{8\}//' > release_notes.md
+          '
+
+          # 方案 A: 双语聚合 Release Notes (英文在上，中文在下)
+          > release_notes.md
+          if [ -f CHANGELOG_EN.md ]; then
+            EN_NOTES=$(awk -v ver="$VERSION" "$EXTRACT_AWK" CHANGELOG_EN.md | sed 's/^[[:space:]]\{8\}//')
+            if [ -n "$EN_NOTES" ]; then
+              echo "$EN_NOTES" >> release_notes.md
+            fi
+          fi
+
+          if [ -f CHANGELOG.md ]; then
+            ZH_NOTES=$(awk -v ver="$VERSION" "$EXTRACT_AWK" CHANGELOG.md | sed 's/^[[:space:]]\{8\}//')
+            if [ -n "$ZH_NOTES" ]; then
+              if [ -s release_notes.md ]; then
+                echo "" >> release_notes.md
+                echo "---" >> release_notes.md
+                echo "" >> release_notes.md
+              fi
+              echo "$ZH_NOTES" >> release_notes.md
+            fi
+          fi
+
           if [ ! -s release_notes.md ]; then
             echo "See the assets to download this version and install." > release_notes.md
           fi

@@ -39,6 +39,7 @@ pub mod zai_vision_tools; // Built-in Vision MCP tools (z.ai vision API) // è°ƒè
 pub use config::parse_zai_keys_env;
 pub use config::update_global_system_prompt_config;
 pub use config::update_image_thinking_mode;
+pub use config::update_multimodal_config;
 pub use config::update_thinking_budget_config;
 pub use config::ProxyAuthMode;
 pub use config::ProxyConfig;

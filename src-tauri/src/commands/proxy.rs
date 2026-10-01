@@ -193,17 +193,13 @@ pub async fn internal_start_proxy_service(
     let active_accounts = token_manager.load_accounts().await.unwrap_or(0);
 
     if active_accounts == 0 {
-        let zai_enabled = config.zai.enabled
-            && !matches!(config.zai.dispatch_mode, crate::proxy::ZaiDispatchMode::Off);
-        if !zai_enabled {
-            tracing::warn!("沒有可用賬號，反代邏輯將暫停，請通過管理界面添加。");
-            return Ok(ProxyStatus {
-                running: false,
-                port: config.port,
-                base_url: format!("http://127.0.0.1:{}", config.port),
-                active_accounts: 0,
-            });
-        }
+        tracing::warn!("沒有可用賬號，反代邏輯將暫停，請通過管理界面添加。");
+        return Ok(ProxyStatus {
+            running: false,
+            port: config.port,
+            base_url: format!("http://127.0.0.1:{}", config.port),
+            active_accounts: 0,
+        });
     }
 
     let mut instance_lock = state.instance.write().await;
@@ -255,10 +251,6 @@ pub async fn ensure_admin_server(
         config.experimental.thinking_store_enabled,
         config.experimental.thinking_retention_days,
         Some(config.experimental.thinking_max_memory_turns),
-    );
-    crate::proxy::config::update_global_compression_level(
-        config.experimental.compression_level.clone(),
-        config.experimental.enable_usage_scaling,
     );
 
     // Ensure monitor exists
@@ -318,11 +310,7 @@ pub async fn ensure_admin_server(
     crate::proxy::update_global_system_prompt_config(config.global_system_prompt.clone());
     // [NEW] 初始化全局图像思维模式配置
     crate::proxy::update_image_thinking_mode(config.image_thinking_mode.clone());
-    // [NEW] 初始化全局压缩等级配置
-    crate::proxy::config::update_global_compression_level(
-        config.experimental.compression_level.clone(),
-        config.experimental.enable_usage_scaling,
-    );
+    crate::proxy::update_multimodal_config(config.multimodal.clone());
     crate::proxy::config::update_global_audit_config(
         config.experimental.payload_storage_mode.clone(),
         config.experimental.log_retention_days,

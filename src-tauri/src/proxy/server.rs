@@ -95,9 +95,6 @@ pub struct AppState {
     #[allow(dead_code)]
     pub upstream_proxy: Arc<tokio::sync::RwLock<crate::proxy::config::UpstreamProxyConfig>>,
     pub upstream: Arc<crate::proxy::upstream::client::UpstreamClient>,
-    pub zai: Arc<RwLock<crate::proxy::ZaiConfig>>,
-    pub provider_rr: Arc<AtomicUsize>,
-    pub zai_vision_mcp: Arc<crate::proxy::zai_vision_mcp::ZaiVisionMcpState>,
     pub monitor: Arc<crate::proxy::monitor::ProxyMonitor>,
     pub experimental: Arc<RwLock<crate::proxy::config::ExperimentalConfig>>,
     pub debug_logging: Arc<RwLock<crate::proxy::config::DebugLoggingConfig>>,
@@ -112,6 +109,9 @@ pub struct AppState {
     pub proxy_pool_manager: Arc<crate::proxy::proxy_pool::ProxyPoolManager>, // [FIX Web Mode]
     pub only_raw_quota_models: Arc<tokio::sync::RwLock<bool>>, // [NEW] 是否只暴露真实配额模型
     pub image_scheduler: Arc<ImageScheduler>,
+    pub zai: Arc<RwLock<crate::proxy::ZaiConfig>>,
+    pub provider_rr: Arc<AtomicUsize>,
+    pub zai_vision_mcp: Arc<crate::proxy::zai_vision_mcp::ZaiVisionMcpState>,
 }
 
 #[derive(Default)]
@@ -418,7 +418,6 @@ pub struct AxumServer {
     proxy_state: Arc<tokio::sync::RwLock<crate::proxy::config::UpstreamProxyConfig>>,
     upstream: Arc<crate::proxy::upstream::client::UpstreamClient>,
     security_state: Arc<RwLock<crate::proxy::ProxySecurityConfig>>,
-    zai_state: Arc<RwLock<crate::proxy::ZaiConfig>>,
     experimental: Arc<RwLock<crate::proxy::config::ExperimentalConfig>>,
     debug_logging: Arc<RwLock<crate::proxy::config::DebugLoggingConfig>>,
     #[allow(dead_code)] // 预留给 cloudflared 运行状态查询与后续控制
@@ -428,9 +427,15 @@ pub struct AxumServer {
     pub proxy_pool_state: Arc<tokio::sync::RwLock<crate::proxy::config::ProxyPoolConfig>>, // [NEW] 代理池配置状态
     pub proxy_pool_manager: Arc<crate::proxy::proxy_pool::ProxyPoolManager>, // [NEW] 暴露代理池管理器供命令调用
     pub only_raw_quota_models: Arc<tokio::sync::RwLock<bool>>,
+    zai_state: Arc<RwLock<crate::proxy::ZaiConfig>>,
 }
 
 impl AxumServer {
+    pub async fn update_zai(&self, config: &crate::proxy::config::ProxyConfig) {
+        let mut zai = self.zai_state.write().await;
+        *zai = config.zai.clone();
+    }
+
     pub async fn update_only_raw_quota_models(&self, only_raw: bool) {
         let mut r = self.only_raw_quota_models.write().await;
         *r = only_raw;
@@ -478,12 +483,6 @@ impl AxumServer {
         let mut sec = self.security_state.write().await;
         *sec = crate::proxy::ProxySecurityConfig::from_proxy_config(config);
         tracing::info!("反代服务安全配置已热更新");
-    }
-
-    pub async fn update_zai(&self, config: &crate::proxy::config::ProxyConfig) {
-        let mut zai = self.zai_state.write().await;
-        *zai = config.zai.clone();
-        tracing::info!("z.ai 配置已热更新");
     }
 
     pub async fn update_experimental(&self, config: &crate::proxy::config::ProxyConfig) {
@@ -603,9 +602,6 @@ impl AxumServer {
                 }
                 u
             },
-            zai: zai_state.clone(),
-            provider_rr: provider_rr.clone(),
-            zai_vision_mcp: zai_vision_mcp_state,
             monitor: monitor.clone(),
             experimental: experimental_state.clone(),
             debug_logging: debug_logging_state.clone(),
@@ -622,6 +618,9 @@ impl AxumServer {
             proxy_pool_manager: proxy_pool_manager.clone(),
             only_raw_quota_models: only_raw_quota_models_state.clone(),
             image_scheduler,
+            zai: zai_state.clone(),
+            provider_rr: provider_rr.clone(),
+            zai_vision_mcp: zai_vision_mcp_state,
         };
 
         // 构建路由 - 使用新架构的 handlers！
@@ -635,8 +634,16 @@ impl AxumServer {
         let proxy_routes = Router::new()
             .route("/health", get(health_check_handler))
             .route("/healthz", get(health_check_handler))
-            // OpenAI Protocol
+            // OpenAI Protocol (Chat & Universal Models)
             .route("/v1/models", get(handlers::openai::handle_list_models))
+            .route(
+                "/v1/models/:model",
+                get(handlers::openai::handle_retrieve_model),
+            )
+            .route(
+                "/v1/model/:model",
+                get(handlers::openai::handle_retrieve_model),
+            )
             .route(
                 "/v1/chat/completions",
                 post(handlers::openai::handle_chat_completions),
@@ -645,6 +652,7 @@ impl AxumServer {
                 "/v1/completions",
                 post(handlers::openai::handle_completions),
             )
+            // Responses Protocol (Codex / Responses)
             .route(
                 "/v1/responses",
                 post(handlers::openai::handle_completions)
@@ -654,6 +662,22 @@ impl AxumServer {
             .route(
                 "/responses/compact",
                 post(handlers::openai::handle_completions),
+            )
+            .route(
+                "/v1/responses/models",
+                get(handlers::openai::handle_list_models),
+            )
+            .route(
+                "/v1/responses/models/:model",
+                get(handlers::openai::handle_retrieve_model),
+            )
+            .route(
+                "/responses/models",
+                get(handlers::openai::handle_list_models),
+            )
+            .route(
+                "/responses/models/:model",
+                get(handlers::openai::handle_retrieve_model),
             )
             .route(
                 "/v1/images/generations",
@@ -676,6 +700,10 @@ impl AxumServer {
             .route(
                 "/v1/models/claude",
                 get(handlers::claude::handle_list_models),
+            )
+            .route(
+                "/v1/models/claude/:model",
+                get(handlers::claude::handle_retrieve_model),
             )
             // z.ai MCP (optional reverse-proxy)
             .route(
@@ -975,6 +1003,14 @@ impl AxumServer {
                 "/system/data-dir",
                 get(admin_get_data_dir_path).post(admin_set_data_dir),
             )
+            .route(
+                "/system/error-log-path",
+                get(admin_get_internal_error_log_path),
+            )
+            .route(
+                "/system/error-log-size",
+                get(admin_get_internal_error_log_disk_size),
+            )
             .route("/system/updates/settings", get(admin_get_update_settings))
             .route(
                 "/system/updates/check-status",
@@ -1103,7 +1139,6 @@ impl AxumServer {
             proxy_state,
             upstream: state.upstream.clone(),
             security_state,
-            zai_state,
             experimental: experimental_state.clone(),
             debug_logging: debug_logging_state.clone(),
             cloudflared_state,
@@ -1112,6 +1147,7 @@ impl AxumServer {
             proxy_pool_state,
             proxy_pool_manager,
             only_raw_quota_models: only_raw_quota_models_state,
+            zai_state,
         };
 
         let server_cancel_token = cancel_token.clone();
@@ -1885,12 +1921,6 @@ async fn admin_save_config(
         *security = crate::proxy::ProxySecurityConfig::from_proxy_config(&new_config.proxy);
     }
 
-    // 更新 z.ai 配置
-    {
-        let mut zai = state.zai.write().await;
-        *zai = new_config.clone().proxy.zai;
-    }
-
     // 更新实验性配置
     {
         let mut exp = state.experimental.write().await;
@@ -1903,28 +1933,17 @@ async fn admin_save_config(
         *pool = new_config.clone().proxy.proxy_pool;
     }
 
-    // [FIX Web Mode] 同步全局内存配置（热更新思考预算、系统提示词、图像思考模式、压缩等级、阈值与审计策略）
+    // 更新 z.ai 配置
+    {
+        let mut zai = state.zai.write().await;
+        *zai = new_config.clone().proxy.zai;
+    }
+
+    // 同步全局内存配置（热更新思考预算、系统提示词、图像思考模式与审计策略）
     crate::proxy::update_thinking_budget_config(new_config.proxy.thinking_budget.clone());
     crate::proxy::update_global_system_prompt_config(new_config.proxy.global_system_prompt.clone());
     crate::proxy::update_image_thinking_mode(new_config.proxy.image_thinking_mode.clone());
-    crate::proxy::config::update_global_compression_level(
-        new_config.proxy.experimental.compression_level.clone(),
-        new_config.proxy.experimental.enable_usage_scaling,
-    );
-    crate::proxy::config::update_global_thresholds(
-        new_config
-            .proxy
-            .experimental
-            .context_compression_threshold_l1,
-        new_config
-            .proxy
-            .experimental
-            .context_compression_threshold_l2,
-        new_config
-            .proxy
-            .experimental
-            .context_compression_threshold_l3,
-    );
+    crate::proxy::update_multimodal_config(new_config.proxy.multimodal.clone());
     crate::proxy::config::update_global_audit_config(
         new_config.proxy.experimental.payload_storage_mode.clone(),
         new_config.proxy.experimental.log_retention_days,
@@ -2729,6 +2748,31 @@ async fn admin_get_data_dir_path() -> impl IntoResponse {
     match crate::modules::account::get_data_dir() {
         Ok(p) => Json(crate::modules::account::format_data_dir_path(&p)),
         Err(e) => Json(format!("Error: {}", e)),
+    }
+}
+
+async fn admin_get_internal_error_log_path() -> impl IntoResponse {
+    match crate::modules::logger::internal_error_log_path() {
+        Ok(p) => Json(crate::modules::account::format_data_dir_path(&p)),
+        Err(e) => Json(format!("Error: {}", e)),
+    }
+}
+
+async fn admin_get_internal_error_log_disk_size() -> impl IntoResponse {
+    match tokio::task::spawn_blocking(crate::modules::logger::internal_error_log_disk_size).await {
+        Ok(Ok(bytes)) => Json(bytes).into_response(),
+        Ok(Err(e)) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse { error: e }),
+        )
+            .into_response(),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        )
+            .into_response(),
     }
 }
 
