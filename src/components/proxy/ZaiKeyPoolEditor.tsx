@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Coins, Gift, KeyRound, Plus, RefreshCw, ShieldCheck, Trash2, X } from 'lucide-react';
+import { Coins, Gift, KeyRound, Plus, RefreshCw, ShieldCheck, Sparkles, Trash2, X } from 'lucide-react';
 import { request as invoke } from '../../utils/request';
 import HelpTooltip from '../common/HelpTooltip';
 import { showToast } from '../common/ToastContainer';
@@ -105,7 +105,6 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
     const [loadingStatus, setLoadingStatus] = useState(false);
     const [oauthWaiting, setOauthWaiting] = useState(false);
     const [importValue, setImportValue] = useState('');
-    const [quotaBusy, setQuotaBusy] = useState<string | null>(null);
 
     // [zcode T3] 验证码与活动套餐状态
     const [captchaSolvingKey, setCaptchaSolvingKey] = useState<string | null>(null);
@@ -113,6 +112,17 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
     const [claimPlans, setClaimPlans] = useState<ZcodeClaimPlan[]>([]);
     const [claimLoading, setClaimLoading] = useState(false);
     const [claimingId, setClaimingId] = useState<string | null>(null);
+
+    // [zcode 额度详情弹窗状态]
+    const [quotaModalOpen, setQuotaModalOpen] = useState(false);
+    const [quotaTargetIndex, setQuotaTargetIndex] = useState<number>(0);
+    const [quotaLoading, setQuotaLoading] = useState(false);
+    const [quotaError, setQuotaError] = useState<string | null>(null);
+    const [quotaResult, setQuotaResult] = useState<{
+        planData?: unknown;
+        subData?: unknown;
+        account?: ZaiKeyEntry;
+    } | null>(null);
 
     const captchaInstanceRef = useRef<{ verify?: () => void } | null>(null);
     const verifyCallbackRef = useRef<((param: string) => Promise<{ captchaResult: boolean; bizResult?: boolean }>) | null>(null);
@@ -391,46 +401,99 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
         }
     };
 
-    // [zcode T2/T3] 额度查询：JWT 条目优先查 Plan 额度（billing/balance）；API Key 条目查业务凭证订阅
-    const queryQuota = async (entry: ZaiKeyEntry) => {
-        if (quotaBusy) return;
-        const id = entryIdentity(entry);
-        setQuotaBusy(id);
+    // [zcode 额度查询] 获取账号配额与订阅详情（智能配对 JWT 与 API Key）
+    const fetchQuotaData = async (target: ZaiKeyEntry) => {
+        setQuotaLoading(true);
+        setQuotaError(null);
         try {
-            if (entryMode(entry) === 'jwt') {
-                const data = await invoke<unknown>('zcode_plan_quota', {
-                    zcodeJwt: entry.key,
-                    deviceProfile: entry.device_profile ?? null,
-                    upstreamProxy,
-                    requestTimeout,
-                });
-                const summary = summarizeQuota(data);
-                showToast(
-                    summary || t('proxy.config.zai.keys.quota_raw', { data: JSON.stringify(data) }),
-                    'info',
-                    8000
-                );
-            } else {
-                if (!entry.business_jwt) {
-                    showToast(t('proxy.config.zai.keys.quota_unavailable'), 'warning');
-                    return;
+            let planData: unknown = null;
+            let subData: unknown = null;
+
+            // 1. JWT 条目：优先查询 plan_balance；若有关联的 business_jwt 则同时查订阅
+            if (entryMode(target) === 'jwt') {
+                try {
+                    planData = await invoke('zcode_plan_quota', {
+                        zcodeJwt: target.key,
+                        deviceProfile: target.device_profile ?? null,
+                        upstreamProxy,
+                        requestTimeout,
+                    });
+                } catch (err: unknown) {
+                    console.warn('plan_quota error:', err);
                 }
-                const data = await invoke<unknown>('zcode_query_quota', {
-                    businessJwt: entry.business_jwt,
-                    upstreamProxy,
-                    requestTimeout,
-                });
-                const summary = summarizeQuota(data);
-                showToast(
-                    summary || t('proxy.config.zai.keys.quota_raw', { data: JSON.stringify(data) }),
-                    'info',
-                    8000
+                const paired = keys.find(
+                    (k) => k.account_id && k.account_id === target.account_id && k.business_jwt
+                );
+                const bizJwt = target.business_jwt || paired?.business_jwt;
+                if (bizJwt) {
+                    try {
+                        subData = await invoke('zcode_query_quota', {
+                            businessJwt: bizJwt,
+                            upstreamProxy,
+                            requestTimeout,
+                        });
+                    } catch (err: unknown) {
+                        console.warn('sub_quota error:', err);
+                    }
+                }
+            } else {
+                // 2. API Key 条目：若存在同 account_id 的 JWT 则查 Plan 额度；若自身或关联条目有 business_jwt 则查订阅
+                const pairedJwt = keys.find(
+                    (k) => k.account_id && k.account_id === target.account_id && entryMode(k) === 'jwt'
+                );
+                if (pairedJwt) {
+                    try {
+                        planData = await invoke('zcode_plan_quota', {
+                            zcodeJwt: pairedJwt.key,
+                            deviceProfile: pairedJwt.device_profile ?? null,
+                            upstreamProxy,
+                            requestTimeout,
+                        });
+                    } catch (err: unknown) {
+                        console.warn('plan_quota error from paired jwt:', err);
+                    }
+                }
+                const bizJwt = target.business_jwt || pairedJwt?.business_jwt;
+                if (bizJwt) {
+                    try {
+                        subData = await invoke('zcode_query_quota', {
+                            businessJwt: bizJwt,
+                            upstreamProxy,
+                            requestTimeout,
+                        });
+                    } catch (err: unknown) {
+                        console.warn('sub_quota error:', err);
+                    }
+                }
+            }
+
+            if (!planData && !subData) {
+                throw new Error(
+                    t('proxy.config.zai.keys.quota_fetch_failed', {
+                        defaultValue: '未能获取到额度信息（该账号可能为手动添加的普通 API Key，无订阅查询权限）',
+                    })
                 );
             }
-        } catch (e) {
-            showToast(String(e), 'error', 8000);
+
+            setQuotaResult({ planData, subData, account: target });
+        } catch (e: unknown) {
+            setQuotaError(e instanceof Error ? e.message : String(e));
         } finally {
-            setQuotaBusy(null);
+            setQuotaLoading(false);
+        }
+    };
+
+    const openQuotaModal = (entry?: ZaiKeyEntry) => {
+        let idx = 0;
+        if (entry) {
+            const foundIdx = keys.findIndex((k) => entryIdentity(k) === entryIdentity(entry));
+            if (foundIdx >= 0) idx = foundIdx;
+        }
+        setQuotaTargetIndex(idx);
+        setQuotaModalOpen(true);
+        const target = entry || keys[idx];
+        if (target) {
+            fetchQuotaData(target);
         }
     };
 
@@ -519,6 +582,15 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                     >
                         <RefreshCw size={12} className={loadingStatus ? 'animate-spin' : ''} />
                         {t('proxy.config.zai.keys.refresh_status')}
+                    </button>
+                    <button
+                        className="btn btn-ghost btn-xs gap-1 text-amber-600 dark:text-amber-400"
+                        onClick={() => openQuotaModal()}
+                        disabled={keys.length === 0}
+                        title={t('proxy.config.zai.keys.quota_query_all')}
+                    >
+                        <Coins size={12} />
+                        {t('proxy.config.zai.keys.quota_query_btn')}
                     </button>
                     <button
                         className="btn btn-ghost btn-xs gap-1 text-primary"
@@ -616,18 +688,12 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                             </>
                         )}
                         <button
-                            className="btn btn-ghost btn-xs gap-1"
-                            disabled={(!isJwt && !entry.business_jwt) || quotaBusy !== null}
-                            title={
-                                isJwt
-                                    ? t('proxy.config.zai.keys.plan_quota')
-                                    : entry.business_jwt
-                                      ? t('proxy.config.zai.keys.quota_query')
-                                      : t('proxy.config.zai.keys.quota_unavailable')
-                            }
-                            onClick={() => queryQuota(entry)}
+                            className="btn btn-ghost btn-xs gap-1 text-amber-600 dark:text-amber-400"
+                            title={t('proxy.config.zai.keys.quota_query')}
+                            onClick={() => openQuotaModal(entry)}
                         >
-                            <Coins size={12} className={quotaBusy === id ? 'animate-pulse' : ''} />
+                            <Coins size={12} />
+                            <span className="text-[10px] hidden sm:inline">{t('proxy.config.zai.keys.quota_short')}</span>
                         </button>
                         {st && (
                             <span
@@ -715,72 +781,274 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                     <div className="modal-backdrop bg-black/40" onClick={() => setClaimTarget(null)} />
                 </div>
             )}
+
+            {/* [zcode] 账号额度与配额详情弹窗 */}
+            {quotaModalOpen && (
+                <div className="modal modal-open">
+                    <div className="modal-box relative max-w-lg bg-white dark:bg-base-100 border border-base-300 shadow-2xl p-5">
+                        <div className="flex items-center justify-between pb-3 border-b border-base-200">
+                            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                                <Coins size={16} className="text-amber-500" />
+                                <span>{t('proxy.config.zai.keys.quota_modal_title')}</span>
+                            </h3>
+                            <div className="flex items-center gap-1">
+                                <button
+                                    className="btn btn-ghost btn-xs btn-circle"
+                                    title={t('proxy.config.zai.keys.quota_refresh')}
+                                    disabled={quotaLoading}
+                                    onClick={() => {
+                                        const target = keys[quotaTargetIndex];
+                                        if (target) fetchQuotaData(target);
+                                    }}
+                                >
+                                    <RefreshCw size={13} className={quotaLoading ? 'animate-spin' : ''} />
+                                </button>
+                                <button
+                                    className="btn btn-ghost btn-xs btn-circle"
+                                    onClick={() => {
+                                        setQuotaModalOpen(false);
+                                        setQuotaResult(null);
+                                    }}
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* 多账号切换器 */}
+                        {keys.length > 1 && (
+                            <div className="pt-3 pb-1">
+                                <label className="text-[11px] text-gray-400 mb-1 block">
+                                    {t('proxy.config.zai.keys.quota_account')}
+                                </label>
+                                <select
+                                    className="select select-xs select-bordered w-full font-mono text-xs"
+                                    value={quotaTargetIndex}
+                                    onChange={(e) => {
+                                        const newIdx = Number(e.target.value);
+                                        setQuotaTargetIndex(newIdx);
+                                        const target = keys[newIdx];
+                                        if (target) fetchQuotaData(target);
+                                    }}
+                                >
+                                    {keys.map((k, i) => (
+                                        <option key={i} value={i}>
+                                            #{i + 1} {k.user_email || k.account_id || k.label || (entryMode(k) === 'jwt' ? 'Plan JWT' : 'API Key')} ({k.key.slice(0, 10)}...)
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        <div className="py-3 min-h-[140px] max-h-[380px] overflow-y-auto space-y-3">
+                            {quotaLoading ? (
+                                <div className="flex flex-col items-center justify-center h-32 text-xs text-gray-400 gap-2">
+                                    <RefreshCw size={18} className="animate-spin text-amber-500" />
+                                    <span>{t('common.loading')}</span>
+                                </div>
+                            ) : quotaError ? (
+                                <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg text-xs text-red-600 dark:text-red-400">
+                                    {quotaError}
+                                </div>
+                            ) : quotaResult ? (
+                                (() => {
+                                    const balances = parseBalances(quotaResult.planData);
+                                    const subs = parseSubscriptions(quotaResult.subData);
+                                    return (
+                                        <div className="space-y-4">
+                                            {/* Coding Plan 余额 */}
+                                            {balances.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                                                        {t('proxy.config.zai.keys.quota_plan_section')}
+                                                    </h4>
+                                                    <div className="space-y-2">
+                                                        {balances.map((b, i) => (
+                                                            <div
+                                                                key={i}
+                                                                className="p-3 rounded-xl border border-base-200 bg-base-50/50 dark:bg-base-200/30 space-y-2"
+                                                            >
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="flex items-center gap-1.5 font-medium text-xs text-gray-800 dark:text-gray-200">
+                                                                        <Sparkles size={13} className="text-amber-500" />
+                                                                        <span>{b.name}</span>
+                                                                    </div>
+                                                                    <span className="badge badge-sm badge-ghost text-[10px] font-mono font-medium">
+                                                                        {b.remaining.toLocaleString()} / {b.total.toLocaleString()}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="w-full bg-gray-200 dark:bg-base-300 rounded-full h-1.5 overflow-hidden">
+                                                                    <div
+                                                                        className={`h-full transition-all duration-300 ${
+                                                                            b.percent > 50
+                                                                                ? 'bg-emerald-500'
+                                                                                : b.percent > 20
+                                                                                  ? 'bg-amber-500'
+                                                                                  : 'bg-rose-500'
+                                                                        }`}
+                                                                        style={{ width: `${b.percent}%` }}
+                                                                    />
+                                                                </div>
+                                                                <div className="flex items-center justify-between text-[10px] text-gray-400">
+                                                                    <span>
+                                                                        {t('proxy.config.zai.keys.quota_remaining')}: {b.percent}%
+                                                                    </span>
+                                                                    {b.expiresAt && (
+                                                                        <span>
+                                                                            {t('proxy.config.zai.keys.quota_expires')}: {b.expiresAt}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Subscription 套餐 */}
+                                            {subs.length > 0 && (
+                                                <div className="space-y-2">
+                                                    <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">
+                                                        {t('proxy.config.zai.keys.quota_sub_section')}
+                                                    </h4>
+                                                    <div className="space-y-1.5">
+                                                        {subs.map((s, i) => (
+                                                            <div
+                                                                key={i}
+                                                                className="p-2.5 rounded-lg border border-base-200 bg-base-50/50 dark:bg-base-200/20 flex items-center justify-between text-xs"
+                                                            >
+                                                                <div>
+                                                                    <span className="font-medium text-gray-800 dark:text-gray-200">
+                                                                        {s.planName}
+                                                                    </span>
+                                                                    {s.expireTime && (
+                                                                        <span className="text-[10px] text-gray-400 block">
+                                                                            {t('proxy.config.zai.keys.quota_expires')}: {s.expireTime}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <span
+                                                                    className={`badge badge-xs ${
+                                                                        s.status.toLowerCase() === 'active'
+                                                                            ? 'badge-success'
+                                                                            : 'badge-ghost'
+                                                                    }`}
+                                                                >
+                                                                    {s.status}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {balances.length === 0 && subs.length === 0 && (
+                                                <div className="text-xs text-gray-400 italic text-center py-6">
+                                                    {t('proxy.config.zai.keys.quota_empty')}
+                                                </div>
+                                            )}
+
+                                            {/* Collapsible raw details */}
+                                            <details className="group">
+                                                <summary className="cursor-pointer text-[10px] text-gray-400 hover:text-gray-600 transition-colors">
+                                                    Raw JSON
+                                                </summary>
+                                                <pre className="mt-1 p-2 bg-gray-50 dark:bg-base-300 rounded text-[9px] font-mono overflow-x-auto max-h-32">
+                                                    {JSON.stringify(quotaResult, null, 2)}
+                                                </pre>
+                                            </details>
+                                        </div>
+                                    );
+                                })()
+                            ) : (
+                                <div className="text-xs text-gray-400 italic text-center py-6">
+                                    {t('proxy.config.zai.keys.quota_empty')}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div
+                        className="modal-backdrop bg-black/40"
+                        onClick={() => {
+                            setQuotaModalOpen(false);
+                            setQuotaResult(null);
+                        }}
+                    />
+                </div>
+            )}
         </div>
     );
 };
 
-// [zcode T2/T3] 订阅/额度响应容错摘要（支持 Coding Plan balances[] 与订阅 list）
-function summarizeQuota(data: unknown): string {
-    if (data == null) return '';
-    const records: unknown[] = Array.isArray(data)
-        ? data
-        : typeof data === 'object'
-          ? (Object.values(data as Record<string, unknown>).find((v) => Array.isArray(v)) as
-                | unknown[]
-                | undefined) ?? [data]
-          : [data];
-    const lines: string[] = [];
-    for (const item of records) {
-        if (typeof item !== 'object' || item == null) continue;
-        const obj = item as Record<string, unknown>;
-        const name = [
-            'show_name',
-            'showName',
-            'model',
-            'plan_name',
-            'planName',
-            'name',
-            'product_name',
-            'productName',
-            'title',
-        ]
-            .map((k) => obj[k])
-            .find((v) => typeof v === 'string') as string | undefined;
-        const expire = [
-            'expires_at',
-            'expire_time',
-            'expireTime',
-            'expired_at',
-            'expiredAt',
-            'end_time',
-            'endTime',
-            'valid_until',
-        ]
-            .map((k) => obj[k])
-            .find((v) => typeof v === 'string' || typeof v === 'number');
+interface ParsedBalance {
+    name: string;
+    model?: string;
+    total: number;
+    used: number;
+    remaining: number;
+    percent: number;
+    expiresAt?: string;
+}
 
-        const remaining =
-            obj['remaining_units'] ??
-            obj['remainingUnits'] ??
-            obj['remaining'] ??
-            obj['remain'] ??
-            obj['quota'] ??
-            obj['balance'] ??
-            obj['left'];
-        const total = obj['total_units'] ?? obj['totalUnits'] ?? obj['total'];
+function parseBalances(data: unknown): ParsedBalance[] {
+    if (!data || typeof data !== 'object') return [];
+    const obj = data as Record<string, unknown>;
+    const rawList: unknown[] = Array.isArray(obj.balances)
+        ? (obj.balances as unknown[])
+        : Array.isArray(data)
+          ? (data as unknown[])
+          : [];
 
-        let quotaStr: string | undefined;
-        if (remaining !== undefined && total !== undefined) {
-            quotaStr = `${remaining} / ${total}`;
-        } else if (remaining !== undefined) {
-            quotaStr = String(remaining);
+    const result: ParsedBalance[] = [];
+    for (const item of rawList) {
+        if (!item || typeof item !== 'object') continue;
+        const b = item as Record<string, unknown>;
+        const name = String(b.show_name || b.showName || b.model || b.plan_name || 'Coding Plan');
+        const model = b.model ? String(b.model) : undefined;
+        const total = Number(b.total_units ?? b.totalUnits ?? b.total ?? 0);
+        const remaining = Number(b.remaining_units ?? b.remainingUnits ?? b.remaining ?? b.balance ?? 0);
+        const used = Number(b.used_units ?? b.usedUnits ?? b.used ?? Math.max(0, total - remaining));
+        const percent = total > 0 ? Math.min(100, Math.max(0, Math.round((remaining / total) * 100))) : 0;
+
+        let expiresAt: string | undefined;
+        const exp = b.expires_at ?? b.expire_time ?? b.expireTime ?? b.expired_at;
+        if (typeof exp === 'number') {
+            const ms = exp < 1e11 ? exp * 1000 : exp;
+            expiresAt = new Date(ms).toLocaleString();
+        } else if (typeof exp === 'string' && exp.trim()) {
+            expiresAt = exp;
         }
 
-        const parts: string[] = [];
-        if (name) parts.push(String(name));
-        if (quotaStr !== undefined) parts.push(quotaStr);
-        if (expire !== undefined) parts.push(String(expire));
-        if (parts.length > 0) lines.push(parts.join(' · '));
+        result.push({ name, model, total, used, remaining, percent, expiresAt });
     }
-    return lines.join('\n');
+    return result;
+}
+
+interface ParsedSub {
+    planName: string;
+    status: string;
+    expireTime?: string;
+}
+
+function parseSubscriptions(data: unknown): ParsedSub[] {
+    if (!data) return [];
+    const list: unknown[] = Array.isArray(data)
+        ? (data as unknown[])
+        : typeof data === 'object' && Array.isArray((data as Record<string, unknown>).list)
+          ? ((data as Record<string, unknown>).list as unknown[])
+          : [data];
+
+    const result: ParsedSub[] = [];
+    for (const item of list) {
+        if (!item || typeof item !== 'object') continue;
+        const s = item as Record<string, unknown>;
+        const planName = String(s.planName || s.plan_name || s.product_name || s.name || '订阅套餐');
+        const status = String(s.status || s.state || 'active');
+        const expireTime =
+            s.expireTime || s.expire_time || s.expiredAt || s.valid_until
+                ? String(s.expireTime || s.expire_time || s.expiredAt || s.valid_until)
+                : undefined;
+        result.push({ planName, status, expireTime });
+    }
+    return result;
 }

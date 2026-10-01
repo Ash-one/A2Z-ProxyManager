@@ -885,6 +885,8 @@ impl AxumServer {
             .route("/zcode/oauth/start", post(admin_zcode_oauth_start))
             .route("/zcode/oauth/poll", post(admin_zcode_oauth_poll))
             .route("/zcode/quota", post(admin_zcode_query_quota))
+            .route("/zcode/quota/summary", get(admin_zcode_get_quota_summary))
+            .route("/v1/quota", get(admin_zcode_get_quota_summary))
             .route("/zcode/captcha/config", post(admin_zcode_captcha_config))
             .route("/zcode/captcha/submit", post(admin_zcode_captcha_submit))
             .route("/zcode/plan/quota", post(admin_zcode_plan_quota))
@@ -2422,6 +2424,64 @@ async fn admin_zcode_plan_quota(
         Ok(data) => Ok(Json(data)),
         Err(e) => Err((StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: e }))),
     }
+}
+
+async fn admin_zcode_get_quota_summary(State(state): State<AppState>) -> impl IntoResponse {
+    let zai = state.zai.read().await.clone();
+    let upstream_proxy = state.upstream_proxy.read().await.clone();
+    let request_timeout = state.request_timeout;
+
+    let mut accounts = Vec::new();
+    for entry in zai.resolved_keys() {
+        let is_jwt = entry.mode == crate::proxy::config::ZaiKeyMode::Jwt
+            || crate::proxy::config::detect_imported_credential(&entry.key)
+                .map(|(m, _)| m == crate::proxy::config::ZaiKeyMode::Jwt)
+                .unwrap_or(false);
+        let masked = crate::proxy::providers::zai_pool::mask_key(&entry.key);
+
+        if is_jwt {
+            let profile = crate::proxy::providers::zcode_plan::profile_for_parts(
+                &entry.account_id,
+                &entry.key,
+                &entry.device_profile,
+            );
+            let quota_res = crate::proxy::providers::zcode_plan::plan_balance(
+                &entry.key,
+                &profile,
+                &upstream_proxy,
+                request_timeout,
+            )
+            .await;
+            accounts.push(serde_json::json!({
+                "account_id": entry.account_id,
+                "user_email": entry.user_email,
+                "label": entry.label,
+                "masked_key": masked,
+                "mode": "jwt",
+                "quota": quota_res.ok(),
+            }));
+        } else if !entry.business_jwt.trim().is_empty() {
+            let sub_res = crate::proxy::providers::zcode_oauth::query_subscription(
+                &entry.business_jwt,
+                &upstream_proxy,
+                request_timeout,
+            )
+            .await;
+            accounts.push(serde_json::json!({
+                "account_id": entry.account_id,
+                "user_email": entry.user_email,
+                "label": entry.label,
+                "masked_key": masked,
+                "mode": "api_key",
+                "subscription": sub_res.ok(),
+            }));
+        }
+    }
+
+    Json(serde_json::json!({
+        "status": "ok",
+        "accounts": accounts,
+    }))
 }
 
 async fn admin_zcode_claim_preview(
