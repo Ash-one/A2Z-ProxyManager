@@ -715,7 +715,7 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                         {t('proxy.config.zai.keys.refresh_status')}
                     </button>
                     <button
-                        className="btn btn-sm h-8 min-h-8 px-3 text-xs btn-primary gap-1"
+                        className="btn btn-sm h-8 min-h-8 px-3 text-xs gap-1 border-none bg-amber-500 hover:bg-amber-600 text-white"
                         onClick={() => setAddOpen(true)}
                     >
                         <Plus size={12} />
@@ -795,13 +795,23 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                                                     : ''}
                                             </span>
                                         )}
-                                        <input
-                                            type="checkbox"
-                                            className="toggle toggle-xs toggle-success"
-                                            checked={entry.enabled}
+                                        {/* [zcode T4 修订] 自绘开关：开启即翠绿，状态一目了然 */}
+                                        <button
+                                            type="button"
+                                            role="switch"
+                                            aria-checked={entry.enabled}
                                             title={t('proxy.config.zai.enabled')}
-                                            onChange={(e) => updateRow(idx, { enabled: e.target.checked })}
-                                        />
+                                            onClick={() => updateRow(idx, { enabled: !entry.enabled })}
+                                            className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
+                                                entry.enabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-base-300'
+                                            }`}
+                                        >
+                                            <span
+                                                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                                                    entry.enabled ? 'translate-x-[18px]' : 'translate-x-0.5'
+                                                }`}
+                                            />
+                                        </button>
                                     </div>
                                 </div>
 
@@ -822,13 +832,11 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                                         </span>
                                     )}
                                     <button
-                                        className="btn btn-ghost btn-xs gap-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                        className="btn btn-ghost btn-xs btn-circle text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                        title={isExpanded ? t('zcodeAccounts.card_collapse') : t('zcodeAccounts.card_edit')}
                                         onClick={() => setExpandedIdx(isExpanded ? null : idx)}
                                     >
-                                        {isExpanded ? <ChevronUp size={11} /> : <Pencil size={11} />}
-                                        {isExpanded
-                                            ? t('zcodeAccounts.card_collapse')
-                                            : t('zcodeAccounts.card_edit')}
+                                        {isExpanded ? <ChevronUp size={13} /> : <Pencil size={13} />}
                                     </button>
                                 </div>
 
@@ -917,47 +925,44 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                                     )
                                 )}
 
-                                {/* 操作区 */}
-                                <div className="flex items-center gap-0.5 pt-1 mt-auto border-t border-gray-100 dark:border-base-200">
+                                {/* 操作区（图标方块按钮，悬浮提示见 title） */}
+                                <div className="flex items-center gap-1 pt-1 mt-auto border-t border-gray-100 dark:border-base-200">
                                     {isJwt && (
                                         <button
-                                            className="btn btn-ghost btn-xs gap-1 text-emerald-600 dark:text-emerald-400"
+                                            className="btn btn-ghost btn-xs h-7 w-7 min-h-0 p-0 text-emerald-600 dark:text-emerald-400"
                                             disabled={isSolving}
                                             title={t('proxy.config.zai.keys.captcha_solve')}
                                             onClick={() => solveCaptcha(entry)}
                                         >
-                                            <ShieldCheck size={12} className={isSolving ? 'animate-pulse' : ''} />
+                                            <ShieldCheck size={14} className={isSolving ? 'animate-pulse' : ''} />
                                         </button>
                                     )}
                                     {isJwt && (
                                         <button
-                                            className="btn btn-ghost btn-xs gap-1 text-amber-600 dark:text-amber-400"
+                                            className="btn btn-ghost btn-xs h-7 w-7 min-h-0 p-0 text-amber-600 dark:text-amber-400"
                                             title={t('proxy.config.zai.keys.claim')}
                                             onClick={() => openClaimModal(entry)}
                                         >
-                                            <Gift size={12} />
+                                            <Gift size={14} />
                                         </button>
                                     )}
                                     {quotaAnchor && (
                                         <button
-                                            className="btn btn-ghost btn-xs gap-1 text-amber-600 dark:text-amber-400"
+                                            className="btn btn-ghost btn-xs h-7 w-7 min-h-0 p-0 text-amber-600 dark:text-amber-400"
                                             title={t('zcodeAccounts.quota_refresh')}
                                             disabled={quotaRefreshing}
                                             onClick={() => fetchQuotaIntoCache(entry)}
                                         >
-                                            <Coins size={12} className={quotaRefreshing ? 'animate-pulse' : ''} />
-                                            <span className="text-[10px] hidden sm:inline">
-                                                {t('proxy.config.zai.keys.quota_short')}
-                                            </span>
+                                            <Coins size={14} className={quotaRefreshing ? 'animate-pulse' : ''} />
                                         </button>
                                     )}
                                     <div className="flex-1" />
                                     <button
-                                        className="btn btn-ghost btn-xs text-red-500"
+                                        className="btn btn-ghost btn-xs h-7 w-7 min-h-0 p-0 text-red-500"
                                         onClick={() => removeRow(idx)}
                                         title={t('common.delete')}
                                     >
-                                        <Trash2 size={12} />
+                                        <Trash2 size={14} />
                                     </button>
                                 </div>
                             </div>
@@ -997,7 +1002,7 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                                     </div>
                                 </div>
                                 <button
-                                    className="btn btn-primary btn-sm w-full gap-1 text-xs"
+                                    className="btn btn-sm w-full gap-1 text-xs border-none bg-amber-500 hover:bg-amber-600 text-white"
                                     onClick={startOauth}
                                     disabled={oauthWaiting}
                                 >

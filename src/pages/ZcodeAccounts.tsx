@@ -37,9 +37,6 @@ function ZcodeAccounts() {
                         <KeyRound size={18} className="text-amber-500" />
                         {t('zcodeAccounts.title')}
                     </h1>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        {t('zcodeAccounts.desc')}
-                    </p>
                 </div>
                 <ZaiKeyPoolEditor
                     zai={config?.proxy.zai}
