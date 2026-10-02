@@ -406,7 +406,14 @@
     "card_edit": "編輯",
     "card_collapse": "收起",
     "card_credential": "憑證",
-    "card_upstream": "上游家族"
+    "card_upstream": "上游家族",
+    "add_account": "添加帳號",
+    "oauth_option_title": "OAuth 免密登入",
+    "oauth_option_desc": "開啟 z.ai 授權頁完成登入，自動開通訂閱 API Key 並與 Plan JWT 配對入池。",
+    "import_option_title": "手動匯入",
+    "import_option_desc": "貼上 API Key 或訂閱 JWT，自動判別並入池。",
+    "or": "或",
+    "quota_refresh": "重新整理該帳號額度"
   },
   "settings": {
     "save": "儲存設定",

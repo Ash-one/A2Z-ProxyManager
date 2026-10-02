@@ -406,7 +406,14 @@
     "card_edit": "Düzenle",
     "card_collapse": "Kapat",
     "card_credential": "Kimlik bilgisi",
-    "card_upstream": "Akış sağlayıcı"
+    "card_upstream": "Akış sağlayıcı",
+    "add_account": "Hesap Ekle",
+    "oauth_option_title": "Şifresiz OAuth Girişi",
+    "oauth_option_desc": "z.ai yetkilendirme sayfasını açar; abonelik API anahtarını otomatik oluşturur ve Plan JWT ile eşleştirerek havuza ekler.",
+    "import_option_title": "Manuel İçe Aktarma",
+    "import_option_desc": "API anahtarı veya abonelik JWT'si yapıştırın; otomatik algılanıp havuza eklenir.",
+    "or": "veya",
+    "quota_refresh": "Bu hesabın kotasını yenile"
   },
   "settings": {
     "save": "Ayarları Kaydet",

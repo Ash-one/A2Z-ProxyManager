@@ -406,7 +406,14 @@
     "card_edit": "編集",
     "card_collapse": "折りたたむ",
     "card_credential": "認証情報",
-    "card_upstream": "上流プロバイダ"
+    "card_upstream": "上流プロバイダ",
+    "add_account": "アカウント追加",
+    "oauth_option_title": "OAuth ログイン（パスワード不要）",
+    "oauth_option_desc": "z.ai の認証ページを開き、サブスク API Key を自動開通して Plan JWT とペアでプールに追加します。",
+    "import_option_title": "手動インポート",
+    "import_option_desc": "API Key またはサブスク JWT を貼り付けると自動判定でプールに追加します。",
+    "or": "または",
+    "quota_refresh": "このアカウントのクォータを更新"
   },
   "settings": {
     "save": "設定を保存",

@@ -406,7 +406,14 @@
     "card_edit": "Изменить",
     "card_collapse": "Свернуть",
     "card_credential": "Учётные данные",
-    "card_upstream": "Провайдер"
+    "card_upstream": "Провайдер",
+    "add_account": "Добавить аккаунт",
+    "oauth_option_title": "Вход через OAuth без пароля",
+    "oauth_option_desc": "Открывает страницу авторизации z.ai; автоматически создаёт подписочный API-ключ и добавляет его в пул в паре с Plan JWT.",
+    "import_option_title": "Ручной импорт",
+    "import_option_desc": "Вставьте API-ключ или подписочный JWT — он будет распознан и добавлен в пул.",
+    "or": "или",
+    "quota_refresh": "Обновить квоту этого аккаунта"
   },
   "settings": {
     "save": "Сохранить настройки",

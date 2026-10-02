@@ -406,7 +406,14 @@
     "card_edit": "Sửa",
     "card_collapse": "Thu gọn",
     "card_credential": "Thông tin xác thực",
-    "card_upstream": "Nhà cung cấp"
+    "card_upstream": "Nhà cung cấp",
+    "add_account": "Thêm tài khoản",
+    "oauth_option_title": "Đăng nhập OAuth không cần mật khẩu",
+    "oauth_option_desc": "Mở trang ủy quyền z.ai; tự động cấp API key đăng ký và thêm vào kho ghép cặp với Plan JWT.",
+    "import_option_title": "Nhập thủ công",
+    "import_option_desc": "Dán API key hoặc JWT đăng ký; tự động nhận dạng và thêm vào kho.",
+    "or": "hoặc",
+    "quota_refresh": "Làm mới hạn mức tài khoản này"
   },
   "settings": {
     "save": "Lưu Cài đặt",

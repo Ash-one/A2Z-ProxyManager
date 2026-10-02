@@ -404,7 +404,14 @@
     "card_edit": "تعديل",
     "card_collapse": "طي",
     "card_credential": "بيانات الاعتماد",
-    "card_upstream": "المزود"
+    "card_upstream": "المزود",
+    "add_account": "إضافة حساب",
+    "oauth_option_title": "تسجيل دخول OAuth بدون كلمة مرور",
+    "oauth_option_desc": "يفتح صفحة ترخيص z.ai؛ وينشئ مفتاح API للاشتراك تلقائيًا ويضيفه إلى المجموعة مقترنًا بـ Plan JWT.",
+    "import_option_title": "استيراد يدوي",
+    "import_option_desc": "الصق مفتاح API أو JWT الاشتراك؛ يتم التعرف عليه تلقائيًا وإضافته إلى المجموعة.",
+    "or": "أو",
+    "quota_refresh": "تحديث حصة هذا الحساب"
   },
   "settings": {
     "save": "حفظ الإعدادات",

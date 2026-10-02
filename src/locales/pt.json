@@ -410,7 +410,14 @@
     "card_edit": "Editar",
     "card_collapse": "Recolher",
     "card_credential": "Credencial",
-    "card_upstream": "Fornecedor upstream"
+    "card_upstream": "Fornecedor upstream",
+    "add_account": "Adicionar Conta",
+    "oauth_option_title": "Início de Sessão OAuth sem palavra-passe",
+    "oauth_option_desc": "Abre a página de autorização z.ai; fornece automaticamente a chave de API de subscrição e adiciona ao conjunto em par com o Plan JWT.",
+    "import_option_title": "Importação Manual",
+    "import_option_desc": "Cole uma chave de API ou JWT de subscrição; é detetado automaticamente e adicionado ao conjunto.",
+    "or": "ou",
+    "quota_refresh": "Atualizar a quota desta conta"
   },
   "settings": {
     "save": "Salvar Configurações",

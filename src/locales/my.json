@@ -404,7 +404,14 @@
     "card_edit": "Sunting",
     "card_collapse": "Tutup",
     "card_credential": "Kredensial",
-    "card_upstream": "Pembekal hulu"
+    "card_upstream": "Pembekal hulu",
+    "add_account": "Tambah Akaun",
+    "oauth_option_title": "Log Masuk OAuth Tanpa Kata Laluan",
+    "oauth_option_desc": "Membuka halaman kebenaran z.ai; menyediakan kunci API langganan secara automatik dan menambahkannya ke kolam berpasangan dengan Plan JWT.",
+    "import_option_title": "Import Manual",
+    "import_option_desc": "Tampal kunci API atau JWT langganan; dikenal pasti secara automatik dan ditambah ke kolam.",
+    "or": "atau",
+    "quota_refresh": "Muar semula kuota akaun ini"
   },
   "settings": {
     "save": "Simpan Tetapan",

@@ -427,7 +427,14 @@
     "card_edit": "Edit",
     "card_collapse": "Collapse",
     "card_credential": "Credential",
-    "card_upstream": "Upstream"
+    "card_upstream": "Upstream",
+    "add_account": "Add Account",
+    "oauth_option_title": "Password-free OAuth Login",
+    "oauth_option_desc": "Opens the z.ai authorization page; automatically provisions the subscription API key and pools it paired with the Plan JWT.",
+    "import_option_title": "Manual Import",
+    "import_option_desc": "Paste an API key or subscription JWT; it is auto-detected and pooled.",
+    "or": "or",
+    "quota_refresh": "Refresh this account's quota"
   },
   "settings": {
     "save": "Save Settings",

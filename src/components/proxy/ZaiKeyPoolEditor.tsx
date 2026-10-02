@@ -122,6 +122,12 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
     const [importValue, setImportValue] = useState('');
     // [zcode T4] 展开编辑的条目下标（index 基准：编辑密钥会改变 entryIdentity）
     const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+    // [zcode T4 修订] 「添加账号」子弹窗（对齐 antigravity AddAccountDialog 模式）
+    const [addOpen, setAddOpen] = useState(false);
+    // [zcode T4 修订] 卡片额度直显缓存（anchor = jwt:<key>，配对 API Key 共享同锚点）
+    const [quotaCache, setQuotaCache] = useState<Record<string, CardQuota>>({});
+    const quotaCacheRef = useRef<Record<string, CardQuota>>({});
+    const quotaFetchingRef = useRef<Set<string>>(new Set());
 
     // [zcode T3] 验证码与活动套餐状态
     const [captchaSolvingKey, setCaptchaSolvingKey] = useState<string | null>(null);
@@ -425,6 +431,7 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                     } else {
                         showToast(t('proxy.config.zai.keys.oauth_success'), 'success');
                     }
+                    setAddOpen(false);
                 } catch (e) {
                     clearInterval(timer);
                     setOauthWaiting(false);
@@ -437,72 +444,60 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
         }
     };
 
-    // [zcode 额度查询] 获取账号配额与订阅详情（智能配对 JWT 与 API Key）
-    const fetchQuotaData = async (target: ZaiKeyEntry) => {
-        setQuotaLoading(true);
-        setQuotaError(null);
-        try {
+    // [zcode T4 修订] 额度来源解析：JWT 条目自身即 Plan 凭证；API Key 条目借 account_id 配对的 JWT
+    const resolveQuotaSources = useCallback(
+        (target: ZaiKeyEntry): { zcodeJwt: string | null; deviceProfile: unknown; bizJwt: string | null } => {
+            if (entryMode(target) === 'jwt') {
+                const paired = keys.find(
+                    (k) => k.account_id && k.account_id === target.account_id && k.business_jwt
+                );
+                return {
+                    zcodeJwt: target.key,
+                    deviceProfile: target.device_profile ?? null,
+                    bizJwt: target.business_jwt || paired?.business_jwt || null,
+                };
+            }
+            const pairedJwt = keys.find(
+                (k) => k.account_id && k.account_id === target.account_id && entryMode(k) === 'jwt'
+            );
+            return {
+                zcodeJwt: pairedJwt?.key ?? null,
+                deviceProfile: pairedJwt?.device_profile ?? null,
+                bizJwt: target.business_jwt || pairedJwt?.business_jwt || null,
+            };
+        },
+        [keys]
+    );
+
+    // [zcode T4 修订] 共享额度请求（Plan 余额 + 订阅详情；两者皆空视为无查询权限）
+    const requestQuota = useCallback(
+        async (target: ZaiKeyEntry): Promise<{ planData: unknown; subData: unknown }> => {
+            const src = resolveQuotaSources(target);
             let planData: unknown = null;
             let subData: unknown = null;
-
-            // 1. JWT 条目：优先查询 plan_balance；若有关联的 business_jwt 则同时查订阅
-            if (entryMode(target) === 'jwt') {
+            if (src.zcodeJwt) {
                 try {
                     planData = await invoke('zcode_plan_quota', {
-                        zcodeJwt: target.key,
-                        deviceProfile: target.device_profile ?? null,
+                        zcodeJwt: src.zcodeJwt,
+                        deviceProfile: src.deviceProfile,
                         upstreamProxy,
                         requestTimeout,
                     });
                 } catch (err: unknown) {
                     console.warn('plan_quota error:', err);
                 }
-                const paired = keys.find(
-                    (k) => k.account_id && k.account_id === target.account_id && k.business_jwt
-                );
-                const bizJwt = target.business_jwt || paired?.business_jwt;
-                if (bizJwt) {
-                    try {
-                        subData = await invoke('zcode_query_quota', {
-                            businessJwt: bizJwt,
-                            upstreamProxy,
-                            requestTimeout,
-                        });
-                    } catch (err: unknown) {
-                        console.warn('sub_quota error:', err);
-                    }
-                }
-            } else {
-                // 2. API Key 条目：若存在同 account_id 的 JWT 则查 Plan 额度；若自身或关联条目有 business_jwt 则查订阅
-                const pairedJwt = keys.find(
-                    (k) => k.account_id && k.account_id === target.account_id && entryMode(k) === 'jwt'
-                );
-                if (pairedJwt) {
-                    try {
-                        planData = await invoke('zcode_plan_quota', {
-                            zcodeJwt: pairedJwt.key,
-                            deviceProfile: pairedJwt.device_profile ?? null,
-                            upstreamProxy,
-                            requestTimeout,
-                        });
-                    } catch (err: unknown) {
-                        console.warn('plan_quota error from paired jwt:', err);
-                    }
-                }
-                const bizJwt = target.business_jwt || pairedJwt?.business_jwt;
-                if (bizJwt) {
-                    try {
-                        subData = await invoke('zcode_query_quota', {
-                            businessJwt: bizJwt,
-                            upstreamProxy,
-                            requestTimeout,
-                        });
-                    } catch (err: unknown) {
-                        console.warn('sub_quota error:', err);
-                    }
+            }
+            if (src.bizJwt) {
+                try {
+                    subData = await invoke('zcode_query_quota', {
+                        businessJwt: src.bizJwt,
+                        upstreamProxy,
+                        requestTimeout,
+                    });
+                } catch (err: unknown) {
+                    console.warn('sub_quota error:', err);
                 }
             }
-
             if (!planData && !subData) {
                 throw new Error(
                     t('proxy.config.zai.keys.quota_fetch_failed', {
@@ -510,7 +505,94 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                     })
                 );
             }
+            return { planData, subData };
+        },
+        [resolveQuotaSources, upstreamProxy, requestTimeout, t]
+    );
 
+    const putQuota = useCallback((anchor: string, q: CardQuota) => {
+        quotaCacheRef.current = { ...quotaCacheRef.current, [anchor]: q };
+        setQuotaCache(quotaCacheRef.current);
+    }, []);
+
+    // [zcode T4 修订] 拉取单账号额度入卡片缓存（Coins 按钮刷新 + 页面打开时自动直显）
+    const fetchQuotaIntoCache = useCallback(
+        async (entry: ZaiKeyEntry) => {
+            const src = resolveQuotaSources(entry);
+            if (!src.zcodeJwt) return;
+            const anchor = `jwt:${src.zcodeJwt}`;
+            if (quotaFetchingRef.current.has(anchor)) return;
+            quotaFetchingRef.current.add(anchor);
+            putQuota(anchor, { ...(quotaCacheRef.current[anchor] || { balances: [], subs: [] }), loading: true, error: undefined });
+            try {
+                const { planData, subData } = await requestQuota(entry);
+                putQuota(anchor, {
+                    balances: parseBalances(planData),
+                    subs: parseSubscriptions(subData),
+                    loading: false,
+                    error: undefined,
+                    fetchedAt: Date.now(),
+                });
+            } catch (e: unknown) {
+                putQuota(anchor, {
+                    balances: [],
+                    subs: [],
+                    loading: false,
+                    error: e instanceof Error ? e.message : String(e),
+                    fetchedAt: Date.now(),
+                });
+            } finally {
+                quotaFetchingRef.current.delete(anchor);
+            }
+        },
+        [resolveQuotaSources, requestQuota, putQuota]
+    );
+
+    // 卡片条目对应的额度缓存锚点（无可配对 JWT 时为 null = 无额度可查）
+    const quotaAnchorFor = useCallback(
+        (entry: ZaiKeyEntry): string | null => {
+            if (entryMode(entry) === 'jwt') {
+                const seg = entry.key.trim().split('.');
+                return seg.length === 3 && seg.every(Boolean) ? `jwt:${entry.key}` : null;
+            }
+            const pairedJwt = keys.find(
+                (k) => k.account_id && k.account_id === entry.account_id && entryMode(k) === 'jwt'
+            );
+            return pairedJwt ? `jwt:${pairedJwt.key}` : null;
+        },
+        [keys]
+    );
+
+    // [zcode T4 修订] 页面打开 / 凭证稳定后 1.2s，串行（400ms 错峰）拉取各 JWT 账号额度直显；
+    // 仍为用户触达页面时的按需拉取，不做后台轮询（T2 决策 #2 的用户授权修订）
+    const quotaSignature = keys
+        .map((k) => `${entryMode(k)}:${k.enabled ? 1 : 0}:${k.key}`)
+        .join('|');
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            const todo = keys.filter((e) => {
+                if (entryMode(e) !== 'jwt' || !e.enabled) return false;
+                const anchor = quotaAnchorFor(e);
+                return !!anchor && !quotaCacheRef.current[anchor] && !quotaFetchingRef.current.has(anchor);
+            });
+            if (todo.length === 0) return;
+            (async () => {
+                for (const entry of todo) {
+                    await fetchQuotaIntoCache(entry);
+                    await new Promise((r) => setTimeout(r, 400));
+                }
+            })();
+        }, 1200);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [quotaSignature, fetchQuotaIntoCache, quotaAnchorFor]);
+
+    // [zcode 额度查询] 弹窗详情（沿用原行为：Plan 余额 + 订阅 data 原样透传）
+    const fetchQuotaData = async (target: ZaiKeyEntry) => {
+        setQuotaLoading(true);
+        setQuotaError(null);
+        try {
+            const { planData, subData } = await requestQuota(target);
             setQuotaResult({ planData, subData, account: target });
         } catch (e: unknown) {
             setQuotaError(e instanceof Error ? e.message : String(e));
@@ -633,47 +715,13 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                         {t('proxy.config.zai.keys.refresh_status')}
                     </button>
                     <button
-                        className="btn btn-sm h-8 min-h-8 px-3 text-xs btn-ghost gap-1 text-amber-600 dark:text-amber-400"
-                        onClick={() => openQuotaModal()}
-                        disabled={keys.length === 0}
-                        title={t('proxy.config.zai.keys.quota_query_all')}
-                    >
-                        <Coins size={12} />
-                        {t('proxy.config.zai.keys.quota_query_btn')}
-                    </button>
-                    <button
                         className="btn btn-sm h-8 min-h-8 px-3 text-xs btn-primary gap-1"
-                        onClick={startOauth}
-                        disabled={oauthWaiting}
-                        title={t('proxy.config.zai.keys.oauth_tooltip')}
+                        onClick={() => setAddOpen(true)}
                     >
-                        <KeyRound size={12} className={oauthWaiting ? 'animate-pulse' : ''} />
-                        {oauthWaiting
-                            ? t('proxy.config.zai.keys.oauth_waiting_short')
-                            : t('proxy.config.zai.keys.oauth_login')}
+                        <Plus size={12} />
+                        {t('zcodeAccounts.add_account')}
                     </button>
                 </div>
-            </div>
-
-            {/* 手动导入：粘贴即判别 */}
-            <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-base-200 bg-white dark:bg-base-100 px-2 py-1.5">
-                <div className="w-6 h-6 rounded-md bg-gray-100 dark:bg-base-200 flex items-center justify-center shrink-0 ml-0.5">
-                    <Plus size={12} className="text-gray-400" />
-                </div>
-                <input
-                    type="text"
-                    className="input input-sm h-8 min-h-8 text-xs input-bordered flex-1 font-mono bg-transparent"
-                    placeholder={t('proxy.config.zai.keys.import_placeholder')}
-                    value={importValue}
-                    onChange={(e) => setImportValue(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter') importCredential();
-                    }}
-                />
-                <button className="btn btn-sm h-8 min-h-8 px-3 text-xs btn-ghost gap-1 shrink-0" onClick={importCredential}>
-                    <Plus size={12} />
-                    {t('proxy.config.zai.keys.import')}
-                </button>
             </div>
 
             {keys.length === 0 ? (
@@ -698,6 +746,10 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                         const isExpanded = expandedIdx === idx;
                         const identity =
                             entry.user_email || entry.account_id || entry.label || t('zcodeAccounts.card_unnamed');
+                        // [zcode T4 修订] 额度直显锚点（JWT 自身或配对 JWT 的缓存）
+                        const quotaAnchor = quotaAnchorFor(entry);
+                        const cardQuota = quotaAnchor ? quotaCache[quotaAnchor] : undefined;
+                        const quotaRefreshing = !!cardQuota?.loading;
                         return (
                             <div
                                 key={idx}
@@ -815,6 +867,56 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                                     </div>
                                 )}
 
+                                {/* [zcode T4 修订] 额度直显（打开页面自动拉取，点击条目看详情弹窗，Coins 按钮刷新） */}
+                                {quotaAnchor && cardQuota && (
+                                    cardQuota.loading && cardQuota.balances.length === 0 ? (
+                                        <div className="space-y-2" title={t('common.loading')}>
+                                            <div className="h-1 w-2/3 rounded-full bg-gray-200 dark:bg-base-300" />
+                                            <div className="h-1 w-full rounded-full bg-gray-200 dark:bg-base-300" />
+                                            <div className="h-1 w-1/2 rounded-full bg-gray-200 dark:bg-base-300" />
+                                        </div>
+                                    ) : cardQuota.balances.length === 0 ? (
+                                        <div
+                                            className="text-[10px] text-gray-300 dark:text-gray-500 italic cursor-pointer truncate"
+                                            title={cardQuota.error || undefined}
+                                            onClick={() => openQuotaModal(entry)}
+                                        >
+                                            {t('proxy.config.zai.keys.quota_empty')}
+                                        </div>
+                                    ) : (
+                                        <div
+                                            className="space-y-2 cursor-pointer"
+                                            title={t('proxy.config.zai.keys.quota_modal_title')}
+                                            onClick={() => openQuotaModal(entry)}
+                                        >
+                                            {cardQuota.balances.map((b, bi) => (
+                                                <div key={bi} className="space-y-1">
+                                                    <div className="flex items-center justify-between gap-2">
+                                                        <span className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                                                            {b.name}
+                                                        </span>
+                                                        <span className="text-[10px] font-mono text-gray-400 tabular-nums shrink-0">
+                                                            {b.remaining.toLocaleString()} / {b.total.toLocaleString()}
+                                                        </span>
+                                                    </div>
+                                                    <div className="w-full bg-gray-200 dark:bg-base-300 rounded-full h-1 overflow-hidden">
+                                                        <div
+                                                            className={`h-full transition-all duration-300 ${
+                                                                b.percent > 50
+                                                                    ? 'bg-emerald-500'
+                                                                    : b.percent > 20
+                                                                      ? 'bg-amber-500'
+                                                                      : 'bg-rose-500'
+                                                            }`}
+                                                            style={{ width: `${b.percent}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )
+                                )}
+
                                 {/* 操作区 */}
                                 <div className="flex items-center gap-0.5 pt-1 mt-auto border-t border-gray-100 dark:border-base-200">
                                     {isJwt && (
@@ -836,16 +938,19 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                                             <Gift size={12} />
                                         </button>
                                     )}
-                                    <button
-                                        className="btn btn-ghost btn-xs gap-1 text-amber-600 dark:text-amber-400"
-                                        title={t('proxy.config.zai.keys.quota_query')}
-                                        onClick={() => openQuotaModal(entry)}
-                                    >
-                                        <Coins size={12} />
-                                        <span className="text-[10px] hidden sm:inline">
-                                            {t('proxy.config.zai.keys.quota_short')}
-                                        </span>
-                                    </button>
+                                    {quotaAnchor && (
+                                        <button
+                                            className="btn btn-ghost btn-xs gap-1 text-amber-600 dark:text-amber-400"
+                                            title={t('zcodeAccounts.quota_refresh')}
+                                            disabled={quotaRefreshing}
+                                            onClick={() => fetchQuotaIntoCache(entry)}
+                                        >
+                                            <Coins size={12} className={quotaRefreshing ? 'animate-pulse' : ''} />
+                                            <span className="text-[10px] hidden sm:inline">
+                                                {t('proxy.config.zai.keys.quota_short')}
+                                            </span>
+                                        </button>
+                                    )}
                                     <div className="flex-1" />
                                     <button
                                         className="btn btn-ghost btn-xs text-red-500"
@@ -858,6 +963,96 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                             </div>
                         );
                     })}
+                </div>
+            )}
+
+            {/* [zcode T4 修订] 添加账号子弹窗（对齐 antigravity AddAccountDialog 模式）：OAuth 免密登录 / 手动导入 */}
+            {addOpen && (
+                <div className="modal modal-open">
+                    <div className="modal-box relative max-w-md bg-white dark:bg-base-100 border border-base-300 shadow-2xl p-5">
+                        <div className="flex items-center justify-between pb-3 border-b border-base-200">
+                            <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                                <Plus size={16} className="text-amber-500" />
+                                <span>{t('zcodeAccounts.add_account')}</span>
+                            </h3>
+                            <button className="btn btn-ghost btn-xs btn-circle" onClick={() => setAddOpen(false)}>
+                                <X size={14} />
+                            </button>
+                        </div>
+
+                        <div className="py-4 space-y-3">
+                            {/* 方式一：OAuth 免密登录 */}
+                            <div className="rounded-xl border border-gray-200 dark:border-base-200 p-4 space-y-2.5">
+                                <div className="flex items-start gap-2">
+                                    <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+                                        <KeyRound size={15} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="text-xs font-semibold text-gray-800 dark:text-gray-100">
+                                            {t('zcodeAccounts.oauth_option_title')}
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 leading-relaxed mt-0.5">
+                                            {t('zcodeAccounts.oauth_option_desc')}
+                                        </p>
+                                    </div>
+                                </div>
+                                <button
+                                    className="btn btn-primary btn-sm w-full gap-1 text-xs"
+                                    onClick={startOauth}
+                                    disabled={oauthWaiting}
+                                >
+                                    <KeyRound size={12} className={oauthWaiting ? 'animate-pulse' : ''} />
+                                    {oauthWaiting
+                                        ? t('proxy.config.zai.keys.oauth_waiting_short')
+                                        : t('proxy.config.zai.keys.oauth_login')}
+                                </button>
+                            </div>
+
+                            {/* 分隔 */}
+                            <div className="flex items-center gap-2">
+                                <div className="flex-1 border-t border-gray-100 dark:border-base-200" />
+                                <span className="text-[10px] text-gray-300 dark:text-gray-500">{t('zcodeAccounts.or')}</span>
+                                <div className="flex-1 border-t border-gray-100 dark:border-base-200" />
+                            </div>
+
+                            {/* 方式二：手动导入 */}
+                            <div className="rounded-xl border border-gray-200 dark:border-base-200 p-4 space-y-2.5">
+                                <div className="flex items-start gap-2">
+                                    <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0">
+                                        <Plus size={15} />
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="text-xs font-semibold text-gray-800 dark:text-gray-100">
+                                            {t('zcodeAccounts.import_option_title')}
+                                        </div>
+                                        <p className="text-[10px] text-gray-400 leading-relaxed mt-0.5">
+                                            {t('zcodeAccounts.import_option_desc')}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <input
+                                        type="text"
+                                        className="input input-sm h-8 min-h-8 text-xs input-bordered flex-1 font-mono"
+                                        placeholder={t('proxy.config.zai.keys.import_placeholder')}
+                                        value={importValue}
+                                        onChange={(e) => setImportValue(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') importCredential();
+                                        }}
+                                    />
+                                    <button
+                                        className="btn btn-sm h-8 min-h-8 px-3 text-xs btn-ghost gap-1 shrink-0"
+                                        onClick={importCredential}
+                                    >
+                                        <Plus size={12} />
+                                        {t('proxy.config.zai.keys.import')}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="modal-backdrop bg-black/40" onClick={() => setAddOpen(false)} />
                 </div>
             )}
 
@@ -1132,6 +1327,15 @@ interface ParsedBalance {
     remaining: number;
     percent: number;
     expiresAt?: string;
+}
+
+// [zcode T4 修订] 卡片直显额度缓存条目
+interface CardQuota {
+    balances: ParsedBalance[];
+    subs: ParsedSub[];
+    loading: boolean;
+    error?: string;
+    fetchedAt?: number;
 }
 
 function parseBalances(data: unknown): ParsedBalance[] {
