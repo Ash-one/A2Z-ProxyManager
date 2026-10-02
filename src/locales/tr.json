@@ -898,7 +898,7 @@
         "modes": {
           "off": "Kapalı",
           "exclusive": "Tüm Anthropic istekleri",
-          "pooled": "Havuzlanmış (bir slot)",
+          "pooled": "Hesap havuzu round-robin’sine katıl (kullanılabilir her anahtar = 1 slot)",
           "fallback": "Sadece Yedek"
         },
         "mcp": {

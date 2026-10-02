@@ -909,7 +909,7 @@
         "modes": {
           "off": "關閉",
           "exclusive": "全部 Claude 請求走 z.ai",
-          "pooled": "加入佇列（佔 1 個槽位）",
+          "pooled": "併入帳號池輪詢（每個可用 Key 佔 1 個槽位）",
           "fallback": "僅作備援"
         },
         "mcp": {

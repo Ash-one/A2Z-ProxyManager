@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, startTransition } from 'react';
-import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { request as invoke } from '../utils/request';
 import { isTauri } from '../utils/env';
@@ -24,10 +23,9 @@ import {
     Save,
     Share2,
     Bot,
-    Zap,
     Puzzle
 } from 'lucide-react';
-import { AppConfig, ProxyConfig, StickySessionConfig, ExperimentalConfig, ZaiKeyStatusView } from '../types/config';
+import { AppConfig, ProxyConfig, StickySessionConfig, ExperimentalConfig } from '../types/config';
 import HelpTooltip from '../components/common/HelpTooltip';
 import ModalDialog from '../components/common/ModalDialog';
 import { showToast } from '../components/common/ToastContainer';
@@ -163,8 +161,6 @@ export default function ApiProxy() {
 
     const [appConfig, setAppConfig] = useState<AppConfig | null>(null);
     const [activeMenuTab, setActiveMenuTab] = useState<'settings' | 'models' | 'cli' | 'protocols'>('settings');
-    // [zcode T4] Key 池管理已升格为独立「ZCode 账号」页，此处仅展示状态摘要
-    const [zaiPoolAvailable, setZaiPoolAvailable] = useState<number | null>(null);
     const [configLoading, setConfigLoading] = useState(true);
     const [configError, setConfigError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -791,27 +787,6 @@ export default function ApiProxy() {
             showToast(`${t('common.error')}: ${error}`, 'error');
         }
     };
-
-    // [zcode T4] 服务配置标签页激活时拉取一次 Key 池可用数（仅摘要展示，管理在 ZCode 账号页）
-    useEffect(() => {
-        if (activeMenuTab !== 'settings') return;
-        let cancelled = false;
-        invoke<ZaiKeyStatusView[]>('get_zai_key_pool_status')
-            .then(views => {
-                if (!cancelled) {
-                    setZaiPoolAvailable(Array.isArray(views) ? views.filter(s => s.status === 'Active').length : 0);
-                }
-            })
-            .catch(() => {
-                if (!cancelled) setZaiPoolAvailable(null);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [activeMenuTab]);
-
-    const zaiKeyCount =
-        appConfig?.proxy.zai?.keys?.length || ((appConfig?.proxy.zai?.api_key || '').trim() ? 1 : 0);
 
     const updateZaiGeneralConfig = (updates: Partial<NonNullable<ProxyConfig['zai']>>) => {
         if (!appConfig?.proxy.zai) return;
@@ -2155,68 +2130,7 @@ print(response.choices[0].message.content)`;
                 {
                     !configLoading && !configError && appConfig && activeMenuTab === 'settings' && (
                         <div className="space-y-4">
-                            {/* z.ai (GLM) Dispatcher */}
-                            <CollapsibleCard
-                                title={t('proxy.config.zai.title')}
-                                icon={<Zap size={18} className="text-amber-500" />}
-                                enabled={!!appConfig.proxy.zai?.enabled}
-                                onToggle={(checked) => updateZaiGeneralConfig({ enabled: checked })}
-                            >
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div className="space-y-1">
-                                            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-                                                {t('proxy.config.zai.base_url')}
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={appConfig.proxy.zai?.base_url || 'https://api.z.ai/api/anthropic'}
-                                                onChange={(e) => updateZaiGeneralConfig({ base_url: e.target.value })}
-                                                className="input input-sm input-bordered w-full font-mono text-xs"
-                                            />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-                                                {t('proxy.config.zai.dispatch_mode')}
-                                            </label>
-                                            <select
-                                                className="select select-sm select-bordered w-full text-xs"
-                                                value={appConfig.proxy.zai?.dispatch_mode || 'off'}
-                                                onChange={(e) => updateZaiGeneralConfig({ dispatch_mode: e.target.value as any })}
-                                            >
-                                                <option value="off">{t('proxy.config.zai.modes.off')}</option>
-                                                <option value="exclusive">{t('proxy.config.zai.modes.exclusive')}</option>
-                                                <option value="pooled">{t('proxy.config.zai.modes.pooled')}</option>
-                                                <option value="fallback">{t('proxy.config.zai.modes.fallback')}</option>
-                                            </select>
-                                        </div>
-                                    </div>
-
-                                    {/* [zcode T4] Key 池管理已升格为独立「ZCode 账号」页，此处保留状态摘要与跳转 */}
-                                    <div className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 dark:border-base-200 bg-gray-50 dark:bg-base-200/60 px-3 py-2.5">
-                                        <div className="min-w-0">
-                                            <div className="text-xs text-gray-600 dark:text-gray-300">
-                                                {t('proxy.config.zai.keys.pool_moved_hint')}
-                                            </div>
-                                            <div className="text-[10px] text-gray-400 mt-0.5">
-                                                {zaiPoolAvailable !== null
-                                                    ? t('proxy.config.zai.keys.pool_summary', {
-                                                          total: zaiKeyCount,
-                                                          available: zaiPoolAvailable,
-                                                      })
-                                                    : t('proxy.config.zai.keys.pool_summary_unknown', { total: zaiKeyCount })}
-                                            </div>
-                                        </div>
-                                        <Link
-                                            to="/zcode-accounts"
-                                            className="btn btn-sm btn-ghost gap-1 text-primary shrink-0"
-                                        >
-                                            {t('proxy.config.zai.keys.go_manage')}
-                                            <ArrowRight size={13} />
-                                        </Link>
-                                    </div>
-                                </div>
-                            </CollapsibleCard>
+                            {/* [zcode T4 修订] z.ai 提供商与分发调度已迁至「ZCode 账号」页，此处仅保留 MCP */}
 
                             {/* MCP System */}
                             <CollapsibleCard

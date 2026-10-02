@@ -903,7 +903,7 @@
         "modes": {
           "off": "끄기",
           "exclusive": "모든 Anthropic 요청",
-          "pooled": "풀링됨 (한 슬롯)",
+          "pooled": "계정 풀 라운드로빈 참여 (사용 가능한 Key마다 1 슬롯)",
           "fallback": "대체 전용"
         },
         "mcp": {

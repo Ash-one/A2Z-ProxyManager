@@ -932,7 +932,7 @@
         "modes": {
           "off": "关闭",
           "exclusive": "全部 Claude 请求走 z.ai",
-          "pooled": "加入队列（占 1 个槽位）",
+          "pooled": "并入账号池轮询（每个可用 Key 占 1 个槽位）",
           "fallback": "仅兜底"
         },
         "mcp": {

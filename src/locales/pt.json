@@ -916,7 +916,7 @@
         "modes": {
           "off": "Desligado",
           "exclusive": "Todas as solicitações Anthropic",
-          "pooled": "Em pool (um slot)",
+          "pooled": "Entrar no rodízio do conjunto de contas (cada chave disponível = 1 lugar)",
           "fallback": "Apenas fallback"
         },
         "mcp": {

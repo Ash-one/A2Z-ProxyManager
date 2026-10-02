@@ -903,7 +903,7 @@
         "modes": {
           "off": "Desactivado",
           "exclusive": "Todas las solicitudes Anthropic",
-          "pooled": "Pooled (un slot)",
+          "pooled": "Unirse al turno rotativo del conjunto de cuentas (cada clave disponible = 1 hueco)",
           "fallback": "Solo Fallback"
         },
         "mcp": {

@@ -896,7 +896,7 @@
         "modes": {
           "off": "Tắt",
           "exclusive": "Tất cả request Anthropic",
-          "pooled": "Gộp chung (1 slot xoay vòng)",
+          "pooled": "Tham gia vòng luân phiên nhóm tài khoản (mỗi key khả dụng = 1 slot)",
           "fallback": "Chỉ dự phòng (Fallback)"
         },
         "mcp": {

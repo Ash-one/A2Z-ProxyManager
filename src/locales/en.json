@@ -941,7 +941,7 @@
         "modes": {
           "off": "Off",
           "exclusive": "All Anthropic requests",
-          "pooled": "Pooled (one slot)",
+          "pooled": "Join the account pool round-robin (each available key = 1 slot)",
           "fallback": "Fallback only"
         },
         "mcp": {

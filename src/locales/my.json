@@ -888,7 +888,7 @@
         "modes": {
           "off": "Off",
           "exclusive": "Semua permintaan Anthropic",
-          "pooled": "Pooled (satu slot)",
+          "pooled": "Sertai giliran kolam akaun (setiap kunci tersedia = 1 slot)",
           "fallback": "Fallback sahaja"
         },
         "mcp": {
