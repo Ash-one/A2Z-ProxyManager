@@ -625,29 +625,29 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                 <div className="flex-1" />
                 <div className="flex items-center gap-1">
                     <button
-                        className="btn btn-sm btn-ghost gap-1"
+                        className="btn btn-sm h-8 min-h-8 px-3 text-xs btn-ghost gap-1"
                         onClick={refreshStatus}
                         disabled={loadingStatus}
                     >
-                        <RefreshCw size={13} className={loadingStatus ? 'animate-spin' : ''} />
+                        <RefreshCw size={12} className={loadingStatus ? 'animate-spin' : ''} />
                         {t('proxy.config.zai.keys.refresh_status')}
                     </button>
                     <button
-                        className="btn btn-sm btn-ghost gap-1 text-amber-600 dark:text-amber-400"
+                        className="btn btn-sm h-8 min-h-8 px-3 text-xs btn-ghost gap-1 text-amber-600 dark:text-amber-400"
                         onClick={() => openQuotaModal()}
                         disabled={keys.length === 0}
                         title={t('proxy.config.zai.keys.quota_query_all')}
                     >
-                        <Coins size={13} />
+                        <Coins size={12} />
                         {t('proxy.config.zai.keys.quota_query_btn')}
                     </button>
                     <button
-                        className="btn btn-sm btn-primary gap-1"
+                        className="btn btn-sm h-8 min-h-8 px-3 text-xs btn-primary gap-1"
                         onClick={startOauth}
                         disabled={oauthWaiting}
                         title={t('proxy.config.zai.keys.oauth_tooltip')}
                     >
-                        <KeyRound size={13} className={oauthWaiting ? 'animate-pulse' : ''} />
+                        <KeyRound size={12} className={oauthWaiting ? 'animate-pulse' : ''} />
                         {oauthWaiting
                             ? t('proxy.config.zai.keys.oauth_waiting_short')
                             : t('proxy.config.zai.keys.oauth_login')}
@@ -656,13 +656,13 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
             </div>
 
             {/* 手动导入：粘贴即判别 */}
-            <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-base-200 bg-white dark:bg-base-100 p-2">
-                <div className="w-7 h-7 rounded-lg bg-gray-100 dark:bg-base-200 flex items-center justify-center shrink-0">
-                    <Plus size={14} className="text-gray-400" />
+            <div className="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-base-200 bg-white dark:bg-base-100 px-2 py-1.5">
+                <div className="w-6 h-6 rounded-md bg-gray-100 dark:bg-base-200 flex items-center justify-center shrink-0 ml-0.5">
+                    <Plus size={12} className="text-gray-400" />
                 </div>
                 <input
                     type="text"
-                    className="input input-sm input-bordered flex-1 font-mono bg-transparent"
+                    className="input input-sm h-8 min-h-8 text-xs input-bordered flex-1 font-mono bg-transparent"
                     placeholder={t('proxy.config.zai.keys.import_placeholder')}
                     value={importValue}
                     onChange={(e) => setImportValue(e.target.value)}
@@ -670,8 +670,8 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                         if (e.key === 'Enter') importCredential();
                     }}
                 />
-                <button className="btn btn-sm btn-ghost gap-1 shrink-0" onClick={importCredential}>
-                    <Plus size={13} />
+                <button className="btn btn-sm h-8 min-h-8 px-3 text-xs btn-ghost gap-1 shrink-0" onClick={importCredential}>
+                    <Plus size={12} />
                     {t('proxy.config.zai.keys.import')}
                 </button>
             </div>
