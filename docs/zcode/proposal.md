@@ -18,7 +18,7 @@ A2Z-ProxyManager 的账号池目前只承载 antigravity（Google OAuth）账号
 
 该问题在移除"引入 zcode2api"这一具体方案后依然成立：**本仓库缺乏"订阅类（JWT）上游账号"的池化管理入口**。
 
-## 2. 提案方向（分四阶段）
+## 2. 提案方向（分五阶段）
 
 全部代码**净室重实现**：zcode2api 为 AGPL-3.0，本仓库为 CC-BY-NC-SA-4.0，代码零搬运；仅以协议事实（端点、头部、状态码语义）为规格来源。
 
@@ -51,6 +51,11 @@ A2Z-ProxyManager 的账号池目前只承载 antigravity（Google OAuth）账号
 
 - 独立顶级导航页「ZCode 账号」（`/zcode-accounts`）：整池搬迁（API Key 池 + OAuth + 导入 + JWT + 过码 + 额度 + 领取）+ 卡片栅格重构，ApiProxy z.ai 卡瘦身保留 dispatcher 配置；数据层零改动（`proxy.zai.keys` / `ZaiKeyPool` / 命令与 web 路由原样）；
 - **取代 T2 决策 #3「UI 留在 z.ai 设置卡内、Accounts 页接入留后续」**（用户重新评估后反转）；§3 表中「前端 Accounts 接入留后续」行由本阶段闭案为"不合并进 Accounts 页"。
+
+### T5 — z.ai 通道多协议形态支持（⏳ Working Proposal：`proposal-t5-protocols.md`）
+
+- GLM 确定性路由扩展至 OpenAI 协议入站（`/v1/chat/completions`、`/v1/completions`、`/v1/responses`——修复 Codex 的 GLM 请求误入 Google 池的实证缺口）；z.ai 通道新增 OpenAI 形态（优先验证 Coding Plan 专用端点 `api.z.ai/api/coding/paas/v4` 直传，实验失败回落网关转换）；
+- 通道形态按请求跟随入站协议（多协议区块实为信息卡、无落盘配置，已勘误）；**闭案 `docs/zai/notes.md` §8 开放问题 #1**。
 
 ## 3. 受影响的所有权边界
 
