@@ -27,7 +27,7 @@ use crate::proxy::server::AppState;
 use crate::proxy::upstream::client::mask_email;
 use axum::http::HeaderMap;
 use dashmap::DashSet;
-use std::sync::{atomic::Ordering, Arc, LazyLock};
+use std::sync::{Arc, LazyLock};
 
 /// 记录刚完成压缩总结的会话集合，提供单次续写接续免死标志 (One-Shot Post-Compaction Immunity)
 /// 彻底攻克“静态扫描消息导致一次压缩后终身免死无法再次压缩”的死穴 (Fixes #3563)
@@ -475,9 +475,6 @@ pub async fn handle_messages(
 
     // Decide whether this request should be handled by z.ai (Anthropic passthrough) or the existing Google flow.
     let zai = state.zai.read().await.clone();
-    let zai_enabled =
-        zai.enabled && !matches!(zai.dispatch_mode, crate::proxy::ZaiDispatchMode::Off);
-    let google_accounts = state.token_manager.len();
 
     // [CRITICAL REFACTOR] 优先解析请求以获取模型信息(用于智能兜底判断)
     let mut request: crate::proxy::mappers::claude::models::ClaudeRequest =
@@ -615,63 +612,13 @@ pub async fn handle_messages(
         .await;
     }
 
-    // [Issue #703 Fix] 智能兜底判断:需要归一化模型名用于配额保护检查
-    let normalized_model =
-        crate::proxy::common::model_mapping::normalize_to_standard_id(&request.model)
-            .unwrap_or_else(|| request.model.clone());
-
     let is_glm_model = {
         let m = request.model.to_lowercase();
         m.starts_with("glm-") || m.starts_with("zai:") || m.starts_with("zcode:")
     };
-    let zai_has_keys = !zai.resolved_keys().is_empty();
-    let effective_zai_enabled = zai_enabled || (zai_has_keys && is_glm_model);
-
-    let use_zai = if !effective_zai_enabled {
-        false
-    } else if is_glm_model {
-        // [反代体验最佳化] 当客户端明确请求 GLM 系列模型（如 GLM-5.3-Flash / glm-5.3 等）时，
-        // 无论全局调度模式为何，确定性路由至 z.ai / zcode 反代通道，避免误入 Google 报 404。
-        true
-    } else {
-        match zai.dispatch_mode {
-            crate::proxy::ZaiDispatchMode::Off => false,
-            crate::proxy::ZaiDispatchMode::Exclusive => true,
-            crate::proxy::ZaiDispatchMode::Fallback => {
-                if google_accounts == 0 {
-                    // 没有 Google 账号,使用兜底
-                    tracing::info!(
-                        "[{}] No Google accounts available, using fallback provider",
-                        trace_id
-                    );
-                    true
-                } else {
-                    // [Issue #703 Fix] 智能判断:检查是否有可用的 Google 账号
-                    let has_available = state
-                        .token_manager
-                        .has_available_account("claude", &normalized_model)
-                        .await;
-                    if !has_available {
-                        tracing::info!(
-                            "[{}] All Google accounts unavailable (rate-limited or quota-protected for {}), using fallback provider",
-                            trace_id,
-                            request.model
-                        );
-                    }
-                    !has_available
-                }
-            }
-            crate::proxy::ZaiDispatchMode::Pooled => {
-                // [zcode T1] 每个可用 z.ai/bigmodel Key = 1 个池化槽位（原为整个 z.ai 1 槽）。
-                // No strict guarantees: it may get 0 requests if selection never hits.
-                let zai_slots =
-                    crate::proxy::providers::zai_pool::ZaiKeyPool::global().available_count(&zai);
-                let total = google_accounts.saturating_add(zai_slots).max(1);
-                let slot = state.provider_rr.fetch_add(1, Ordering::Relaxed) % total;
-                slot < zai_slots
-            }
-        }
-    };
+    // [zcode T4 修订] 唯一分发语义：GLM 系列模型（glm-* / zai:* / zcode:*）确定性走 z.ai / zcode
+    // 反代通道（避免误入 Google 报 404），其余请求一律由 Google 账号池承接；提供商开关为通道总闸。
+    let use_zai = zai.enabled && !zai.resolved_keys().is_empty() && is_glm_model;
 
     // [Stage 1 Timing] 初始会话清洗计时
     let clean_start = std::time::Instant::now();
@@ -2134,9 +2081,7 @@ pub async fn handle_count_tokens(
         })
         .unwrap_or(false);
     let zai_has_keys = !zai.resolved_keys().is_empty();
-    let zai_enabled = (zai.enabled
-        && !matches!(zai.dispatch_mode, crate::proxy::ZaiDispatchMode::Off))
-        || (zai_has_keys && is_glm_model);
+    let zai_enabled = zai.enabled && zai_has_keys && is_glm_model;
 
     if zai_enabled {
         return crate::proxy::providers::zai_anthropic::forward_anthropic_json(

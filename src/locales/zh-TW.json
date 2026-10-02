@@ -413,7 +413,8 @@
     "import_option_title": "手動匯入",
     "import_option_desc": "貼上 API Key 或訂閱 JWT，自動判別並入池。",
     "or": "或",
-    "quota_refresh": "重新整理該帳號額度"
+    "quota_refresh": "重新整理該帳號額度",
+    "dispatch_hint": "GLM 系模型（glm-* / zai:* / zcode:*）由本通道確定性承接轉發，其餘請求一律走 Google 帳號池；關閉開關即停用本通道。"
   },
   "settings": {
     "save": "儲存設定",
@@ -811,7 +812,6 @@
         "enabled_tooltip": "啟用後，Claude 協定請求將按“分發模式”路由到 z.ai。",
         "base_url": "Base URL",
         "base_url_tooltip": "z.ai Anthropic 相容介面的基礎地址。預設 https://api.z.ai/api/anthropic，代理會在其後拼接 /v1/messages 等路徑。",
-        "dispatch_mode": "分發模式",
         "dispatch_mode_tooltip": "控制何時使用 z.ai：關閉=不使用；全部 Claude 請求=所有 /v1/messages 等都轉發到 z.ai；加入佇列=把 z.ai 當作佇列中的 1 個槽位按輪詢分配；僅作備援=僅當沒有可用 Google 帳號時才使用。",
         "api_key": "API Key",
         "api_key_tooltip": "用於呼叫 z.ai 上游的 API Key（本地儲存）。啟用 z.ai 或 MCP 功能前必須配置。",
@@ -905,12 +905,6 @@
           "empty": "尚未配置自定義替換規則。",
           "from_placeholder": "源模型 (如 claude-3-opus)",
           "to_placeholder": "映射至 (如 glm-4)"
-        },
-        "modes": {
-          "off": "關閉",
-          "exclusive": "全部 Claude 請求走 z.ai",
-          "pooled": "併入帳號池輪詢（每個可用 Key 佔 1 個槽位）",
-          "fallback": "僅作備援"
         },
         "mcp": {
           "title": "MCP 服務（透過本地代理）",

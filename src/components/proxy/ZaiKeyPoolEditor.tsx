@@ -43,7 +43,6 @@ export const DEFAULT_ZAI: ZaiConfig = {
     enabled: false,
     base_url: 'https://api.z.ai/api/anthropic',
     api_key: '',
-    dispatch_mode: 'off',
     models: { opus: '', sonnet: '', haiku: '' },
     mcp: { enabled: false, web_search_enabled: false, web_reader_enabled: false, vision_enabled: false },
 };

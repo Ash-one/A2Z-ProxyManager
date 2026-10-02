@@ -411,7 +411,8 @@
     "import_option_title": "Import Manual",
     "import_option_desc": "Tampal kunci API atau JWT langganan; dikenal pasti secara automatik dan ditambah ke kolam.",
     "or": "atau",
-    "quota_refresh": "Muar semula kuota akaun ini"
+    "quota_refresh": "Muar semula kuota akaun ini",
+    "dispatch_hint": "Model keluarga GLM (glm-* / zai:* / zcode:*) dilayan secara tentatif oleh saluran ini; semua permintaan lain ke kolam akaun Google. Matikan suis untuk melumpuhkan saluran."
   },
   "settings": {
     "save": "Simpan Tetapan",
@@ -803,7 +804,6 @@
         "enabled_tooltip": "Mengaktifkan penghalaan z.ai untuk permintaan Anthropic mengikut mod penghantaran yang dipilih.",
         "base_url": "URL Asas",
         "base_url_tooltip": "URL asas serasi Anthropic. Proksi menambah laluan seperti /v1/messages. Biarkan lalai melainkan anda menggunakan gerbang tersuai.",
-        "dispatch_mode": "Mod Penghantaran",
         "dispatch_mode_tooltip": "Mengawal bila untuk menggunakan z.ai untuk permintaan Anthropic: Off menyahaktifkannya; All Anthropic requests memajukan semua; Pooled menambah z.ai sebagai satu slot dalam round-robin dengan akaun Google; Fallback menggunakan z.ai hanya apabila tiada akaun Google.",
         "api_key": "Kunci API",
         "api_key_tooltip": "Kunci API digunakan untuk mengesahkan permintaan ke z.ai. Disimpan secara tempatan dan diperlukan untuk ciri z.ai dan MCP.",
@@ -884,12 +884,6 @@
           "empty": "Tiada peraturan penggantian dikonfigurasikan.",
           "from_placeholder": "Dari (cth. claude-3-opus)",
           "to_placeholder": "Ke (cth. glm-4)"
-        },
-        "modes": {
-          "off": "Off",
-          "exclusive": "Semua permintaan Anthropic",
-          "pooled": "Sertai giliran kolam akaun (setiap kunci tersedia = 1 slot)",
-          "fallback": "Fallback sahaja"
         },
         "mcp": {
           "title": "Pelayan MCP (melalui proksi tempatan)",

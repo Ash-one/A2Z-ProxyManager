@@ -315,25 +315,6 @@ impl Default for ProxyAuthMode {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum ZaiDispatchMode {
-    /// Never use z.ai.
-    Off,
-    /// Use z.ai for all Anthropic protocol requests.
-    Exclusive,
-    /// Treat z.ai as one additional slot in the shared pool.
-    Pooled,
-    /// Use z.ai only when the Google pool is unavailable.
-    Fallback,
-}
-
-impl Default for ZaiDispatchMode {
-    fn default() -> Self {
-        Self::Off
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZaiModelDefaults {
     /// Default model for "opus" family (when the incoming model is a Claude id).
@@ -479,8 +460,6 @@ pub struct ZaiConfig {
     /// zcode T1：API Key 池。非空时优先于遗留 `api_key` 生效。
     #[serde(default)]
     pub keys: Vec<ZaiKeyEntry>,
-    #[serde(default)]
-    pub dispatch_mode: ZaiDispatchMode,
     /// Optional per-model mapping overrides for Anthropic/Claude model ids.
     /// Key: incoming `model` string, Value: upstream z.ai model id (e.g. `glm-4.7`).
     #[serde(default)]
@@ -498,7 +477,6 @@ impl Default for ZaiConfig {
             base_url: default_zai_base_url(),
             api_key: String::new(),
             keys: Vec::new(),
-            dispatch_mode: ZaiDispatchMode::Off,
             model_mapping: HashMap::new(),
             models: ZaiModelDefaults::default(),
             mcp: ZaiMcpConfig::default(),

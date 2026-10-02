@@ -413,7 +413,8 @@
     "import_option_title": "Nhập thủ công",
     "import_option_desc": "Dán API key hoặc JWT đăng ký; tự động nhận dạng và thêm vào kho.",
     "or": "hoặc",
-    "quota_refresh": "Làm mới hạn mức tài khoản này"
+    "quota_refresh": "Làm mới hạn mức tài khoản này",
+    "dispatch_hint": "Các mô hình họ GLM (glm-* / zai:* / zcode:*) được kênh này phục vụ chắc chắn; mọi yêu cầu khác đi vào nhóm tài khoản Google. Tắt công tắc để vô hiệu hóa kênh."
   },
   "settings": {
     "save": "Lưu Cài đặt",
@@ -811,7 +812,6 @@
         "enabled_tooltip": "Bật định tuyến z.ai cho các request Anthropic theo chế độ điều phối đã chọn.",
         "base_url": "Base URL",
         "base_url_tooltip": "Base URL tương thích Anthropic. Proxy sẽ nối thêm đường dẫn như /v1/messages. Để mặc định trừ khi bạn dùng gateway riêng.",
-        "dispatch_mode": "Chế độ Điều phối",
         "dispatch_mode_tooltip": "Kiểm soát khi nào dùng z.ai cho request Anthropic: Tắt = không dùng; Tất cả request Anthropic = chuyển toàn bộ; Pooled = z.ai là 1 slot xoay vòng cùng tài khoản Google; Fallback = chỉ dùng z.ai khi không còn tài khoản Google nào.",
         "api_key": "API Key",
         "api_key_tooltip": "API key để xác thực với z.ai. Lưu cục bộ và cần thiết cho tính năng z.ai và MCP.",
@@ -892,12 +892,6 @@
           "empty": "Chưa có quy tắc ghi đè nào.",
           "from_placeholder": "Ví dụ: claude-3-opus",
           "to_placeholder": "Ví dụ: glm-4"
-        },
-        "modes": {
-          "off": "Tắt",
-          "exclusive": "Tất cả request Anthropic",
-          "pooled": "Tham gia vòng luân phiên nhóm tài khoản (mỗi key khả dụng = 1 slot)",
-          "fallback": "Chỉ dự phòng (Fallback)"
         },
         "mcp": {
           "title": "MCP Servers (qua local proxy)",

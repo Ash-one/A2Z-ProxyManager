@@ -17,19 +17,14 @@ We added an optional “z.ai provider” that:
 ## Configuration
 Schema: `src-tauri/src/proxy/config.rs`
 - `ZaiConfig` in `src-tauri/src/proxy/config.rs`
-- `ZaiDispatchMode` in `src-tauri/src/proxy/config.rs`
 - `ZaiProvider` / `ZaiKeyEntry` / `ZaiKeyMode` in `src-tauri/src/proxy/config.rs` ([zcode T1/T2])
 
 Key fields:
-- `proxy.zai.enabled`
+- `proxy.zai.enabled` — master switch of the z.ai / zcode channel ([zcode T4 rev]: with the switch off, even GLM-family requests no longer route here)
 - `proxy.zai.base_url` (default `https://api.z.ai/api/anthropic`; a custom gateway overrides per-provider canonical URLs, canonical values resolve per key; [zcode T2] the `zcode_plan` provider is a separate subscription domain and ignores the global override)
 - `proxy.zai.keys` — [zcode T1] API key pool entries `{ key, provider: zai|bigmodel, enabled, label? }`; canonical upstreams: `zai` → `https://api.z.ai/api/anthropic`, `bigmodel` → `https://open.bigmodel.cn/api/anthropic`; [zcode T2] entries additionally carry `mode: api_key|jwt`, `account_id`, `user_email`, `business_jwt` (management token for billing queries, never used for message forwarding); `provider: zcode_plan` → `https://zcode.z.ai`
 - `proxy.zai.api_key` — legacy single-key field, kept for migration compat only (`resolved_keys()` migrates it into a single pool entry; ignored when `keys` is non-empty)
-- `proxy.zai.dispatch_mode`:
-  - `off`
-  - `exclusive`
-  - `pooled` (each **available key** = one pool slot, next to the Google accounts)
-  - `fallback`
+- [zcode T4 rev] `proxy.zai.dispatch_mode` was **removed**. Routing is fixed: GLM-family models (`glm-*` / `zai:*` / `zcode:*`) are deterministically served by the z.ai / zcode channel when the provider is enabled and keys exist; all other requests go to the Google account pool. Legacy `dispatch_mode` values in existing `gui_config.json` files are ignored on load and dropped on next save.
 - `proxy.zai.models` default mapping for `claude-*` request models:
   - `opus`, `sonnet`, `haiku`
 
@@ -37,8 +32,8 @@ Headless parity ([zcode T1]): `ABV_ZAI_KEYS` > `ZAI_KEYS` env var overrides the 
 
 ## Routing logic
 Entry point: [`src-tauri/src/proxy/handlers/claude.rs`](../../src-tauri/src/proxy/handlers/claude.rs)
-- `handle_messages(...)` decides whether to route the request to z.ai or to the existing Google-backed flow.
-- `pooled` mode uses round-robin across `(google_accounts + available_zai_keys)` slots; zai-side slots each resolve to a key via the key pool.
+- `handle_messages(...)` routes a request to z.ai iff the provider is enabled, the key pool is non-empty, and the model is GLM-family (`glm-*` / `zai:*` / `zcode:*`); everything else goes to the existing Google-backed flow.
+- Within the z.ai channel, each **available key** = one pool slot ([zcode T1]); account-level failures fail over to the next key (bounded).
 
 ## Upstream implementation
 Provider implementation: [`src-tauri/src/proxy/providers/zai_anthropic.rs`](../../src-tauri/src/proxy/providers/zai_anthropic.rs)
@@ -50,8 +45,7 @@ Provider implementation: [`src-tauri/src/proxy/providers/zai_anthropic.rs`](../.
 - MCP / Vision / model-list helpers follow the first available **API-key** pool entry (`primary_api_key()` skips `mode=jwt` entries); they target z.ai-domain endpoints only and do not rotate keys.
 
 ## Validation
-1) Enable z.ai in the UI (`src/pages/ApiProxy.tsx`) and set `dispatch_mode=exclusive`.
-   - UI: [`src/pages/ApiProxy.tsx`](../../src/pages/ApiProxy.tsx)
+1) Enable z.ai on the ZCode accounts page (`src/pages/ZcodeAccounts.tsx`, [zcode T4 rev] the provider card moved there from the API proxy page).
 2) Start the proxy.
 3) Send a normal Anthropic request to `POST /v1/messages`.
 4) Verify the request is served by z.ai (and Google accounts are not involved for this endpoint in exclusive mode).

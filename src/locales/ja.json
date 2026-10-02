@@ -413,7 +413,8 @@
     "import_option_title": "手動インポート",
     "import_option_desc": "API Key またはサブスク JWT を貼り付けると自動判定でプールに追加します。",
     "or": "または",
-    "quota_refresh": "このアカウントのクォータを更新"
+    "quota_refresh": "このアカウントのクォータを更新",
+    "dispatch_hint": "GLM 系モデル（glm-* / zai:* / zcode:*）は本チャネルが確定的に処理し、それ以外のリクエストはすべて Google アカウントプールに送られます。スイッチをオフにするとチャネルを停止します。"
   },
   "settings": {
     "save": "設定を保存",
@@ -818,7 +819,6 @@
         "enabled_tooltip": "選択したディスパッチモードに従って、Anthropicリクエストのz.aiルーティングを有効にします。",
         "base_url": "ベースURL",
         "base_url_tooltip": "Anthropic互換のベースURL。プロキシは /v1/messages などのパスを追加します。カスタムゲートウェイを使用しない限りデフォルトのままで構いません。",
-        "dispatch_mode": "ディスパッチモード",
         "dispatch_mode_tooltip": "Anthropicリクエストにz.aiを使用するタイミングを制御します: Off は無効; All Anthropic requests はすべて転送; Pooled はGoogleアカウントとのラウンドロビンにz.aiを追加; Fallback はGoogleアカウントがない場合のみz.aiを使用。",
         "api_key": "APIキー",
         "api_key_tooltip": "z.aiへのリクエスト認証に使用するAPIキー。ローカルに保存され、z.aiとMCP機能に必要です。",
@@ -899,12 +899,6 @@
           "empty": "カスタムルールは設定されていません。",
           "from_placeholder": "変換元 (例: claude-3-opus)",
           "to_placeholder": "変換先 (例: glm-4)"
-        },
-        "modes": {
-          "off": "オフ",
-          "exclusive": "すべてのAnthropicリクエスト",
-          "pooled": "アカウントプールのラウンドロビンに参加（利用可能な Key ごとに 1 スロット）",
-          "fallback": "フォールバックのみ"
         },
         "mcp": {
           "title": "MCPサーバー (ローカルプロキシ経由)",

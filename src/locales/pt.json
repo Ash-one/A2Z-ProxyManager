@@ -417,7 +417,8 @@
     "import_option_title": "Importação Manual",
     "import_option_desc": "Cole uma chave de API ou JWT de subscrição; é detetado automaticamente e adicionado ao conjunto.",
     "or": "ou",
-    "quota_refresh": "Atualizar a quota desta conta"
+    "quota_refresh": "Atualizar a quota desta conta",
+    "dispatch_hint": "Os modelos da família GLM (glm-* / zai:* / zcode:*) são atendidos deterministicamente por este canal; todos os demais pedidos vão para o conjunto de contas Google. Desligue o interruptor para desativar o canal."
   },
   "settings": {
     "save": "Salvar Configurações",
@@ -831,7 +832,6 @@
         "enabled_tooltip": "Habilita o roteamento z.ai para solicitações Anthropic de acordo com o modo de despacho selecionado.",
         "base_url": "URL Base",
         "base_url_tooltip": "URL base compatível com Anthropic. O proxy anexa caminhos como /v1/messages. Deixe o padrão a menos que use um gateway personalizado.",
-        "dispatch_mode": "Modo de Despacho",
         "dispatch_mode_tooltip": "Controla quando usar z.ai para solicitações Anthropic: Off desabilita; All Anthropic requests encaminha tudo; Pooled adiciona z.ai como um slot em round-robin com contas do Google; Fallback usa z.ai apenas quando não há contas do Google.",
         "api_key": "Chave da API",
         "api_key_tooltip": "Chave da API usada para autenticar solicitações para z.ai. Armazenada localmente e necessária para recursos z.ai e MCP.",
@@ -912,12 +912,6 @@
           "empty": "Nenhuma regra de substituição configurada.",
           "from_placeholder": "Do (ex: claude-3-opus)",
           "to_placeholder": "Para (ex: glm-4)"
-        },
-        "modes": {
-          "off": "Desligado",
-          "exclusive": "Todas as solicitações Anthropic",
-          "pooled": "Entrar no rodízio do conjunto de contas (cada chave disponível = 1 lugar)",
-          "fallback": "Apenas fallback"
         },
         "mcp": {
           "title": "Servidores MCP (via proxy local)",

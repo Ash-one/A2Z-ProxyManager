@@ -45,7 +45,6 @@ pub use config::ProxyAuthMode;
 pub use config::ProxyConfig;
 pub use config::ProxyPoolConfig;
 pub use config::ZaiConfig;
-pub use config::ZaiDispatchMode;
 pub use security::ProxySecurityConfig;
 pub use server::AxumServer;
 pub use signature_cache::SignatureCache;

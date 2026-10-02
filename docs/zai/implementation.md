@@ -33,14 +33,10 @@ Implementation:
 
 ### z.ai provider
 Config lives under `proxy.zai` (`src-tauri/src/proxy/config.rs`):
-- `enabled: bool`
+- `enabled: bool` — master switch of the z.ai / zcode channel
 - `base_url: string` (default `https://api.z.ai/api/anthropic`)
 - `api_key: string`
-- `dispatch_mode: off | exclusive | pooled | fallback`
-  - `off`: never use z.ai
-  - `exclusive`: all Claude protocol requests go to z.ai
-  - `pooled`: z.ai is treated as **one additional slot** in the shared pool (no priority, no strict guarantee)
-  - `fallback`: z.ai is used only when the Google pool has 0 accounts
+- [zcode T4 rev] `dispatch_mode` was **removed** — routing is fixed: GLM-family models (`glm-*` / `zai:*` / `zcode:*`) go to the z.ai / zcode channel when the provider is enabled and keys exist; all other requests go to the Google account pool. Legacy values in existing configs are ignored on load and dropped on next save.
 - `models`: defaults used when the incoming Anthropic request uses `claude-*` model ids
   - `opus` default `glm-4.7`
   - `sonnet` default `glm-4.7`
@@ -64,11 +60,9 @@ Handler: `src-tauri/src/proxy/handlers/claude.rs` (`handle_messages`)
 
 Flow:
 1. The handler receives `HeaderMap` + raw JSON `Value`.
-2. It decides whether to use z.ai or the existing Google flow:
-   - If z.ai is disabled -> use Google flow.
-   - If `dispatch_mode=exclusive` -> use z.ai.
-   - If `dispatch_mode=fallback` -> use z.ai only if Google pool size is 0.
-   - If `dispatch_mode=pooled` -> use round-robin across `(google_accounts + 1)` slots; slot `0` is z.ai, others are Google.
+2. It decides whether to use z.ai or the existing Google flow ([zcode T4 rev] fixed routing, no dispatch modes):
+   - If the model is GLM-family (`glm-*` / `zai:*` / `zcode:*`) **and** z.ai is enabled **and** the key pool is non-empty -> use z.ai.
+   - Otherwise -> use Google flow.
 3. If z.ai is selected:
    - The raw JSON is forwarded to z.ai as-is (streaming is supported by byte passthrough).
    - The request `model` may be rewritten:
@@ -180,9 +174,7 @@ Build:
 
 Manual (example):
 1) Enable proxy auth (strict or all-except-health) and note `proxy.api_key`.
-2) Enable z.ai and set:
-   - `dispatch_mode=exclusive`
-   - `api_key=<your_z.ai.key>`
+2) Enable z.ai (provider switch on the ZCode accounts page) and set `api_key=<your_z.ai.key>`; then request a GLM-family model (e.g. `glm-5.3-flash`) so the fixed routing sends it to the z.ai channel.
 3) Start proxy and call:
    - `GET http://127.0.0.1:<port>/healthz` (should work without auth in all-except-health; always works in off)
    - `POST http://127.0.0.1:<port>/v1/messages` with `Authorization: Bearer <proxy.api_key>` and a normal Anthropic request body.

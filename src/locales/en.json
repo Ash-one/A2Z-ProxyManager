@@ -434,7 +434,8 @@
     "import_option_title": "Manual Import",
     "import_option_desc": "Paste an API key or subscription JWT; it is auto-detected and pooled.",
     "or": "or",
-    "quota_refresh": "Refresh this account's quota"
+    "quota_refresh": "Refresh this account's quota",
+    "dispatch_hint": "GLM-family models (glm-* / zai:* / zcode:*) are deterministically served by this channel; all other requests go to the Google account pool. Toggle off to disable the channel."
   },
   "settings": {
     "save": "Save Settings",
@@ -843,7 +844,6 @@
         "enabled_tooltip": "Enables z.ai routing for Anthropic requests according to the selected dispatch mode.",
         "base_url": "Base URL",
         "base_url_tooltip": "Anthropic-compatible base URL. The proxy appends paths like /v1/messages. Leave the default unless you use a custom gateway.",
-        "dispatch_mode": "Dispatch Mode",
         "dispatch_mode_tooltip": "Controls when to use z.ai for Anthropic requests: Off disables it; All Anthropic requests forwards everything; Pooled adds z.ai as one slot in round-robin with Google accounts; Fallback uses z.ai only when there are no Google accounts.",
         "api_key": "API Key",
         "api_key_tooltip": "API key used to authenticate requests to z.ai. Stored locally and required for z.ai and MCP features.",
@@ -937,12 +937,6 @@
           "empty": "No override rules configured.",
           "from_placeholder": "From (e.g. claude-3-opus)",
           "to_placeholder": "To (e.g. glm-4)"
-        },
-        "modes": {
-          "off": "Off",
-          "exclusive": "All Anthropic requests",
-          "pooled": "Join the account pool round-robin (each available key = 1 slot)",
-          "fallback": "Fallback only"
         },
         "mcp": {
           "title": "MCP Servers (via local proxy)",

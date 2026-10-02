@@ -413,7 +413,8 @@
     "import_option_title": "수동 가져오기",
     "import_option_desc": "API Key 또는 구독 JWT를 붙여넣으면 자동으로 판별되어 풀에 추가됩니다.",
     "or": "또는",
-    "quota_refresh": "이 계정의 쿼터 새로고침"
+    "quota_refresh": "이 계정의 쿼터 새로고침",
+    "dispatch_hint": "GLM 계열 모델(glm-* / zai:* / zcode:*)은 이 채널이 결정적으로 처리하며, 나머지 요청은 모두 Google 계정 풀로 갑니다. 스위치를 끄면 채널이 비활성화됩니다."
   },
   "settings": {
     "save": "설정 저장",
@@ -818,7 +819,6 @@
         "enabled_tooltip": "선택한 디스패치 모드에 따라 Anthropic 요청에 대해 z.ai 라우팅을 활성화합니다.",
         "base_url": "기본 URL",
         "base_url_tooltip": "Anthropic 호환 기본 URL입니다. 프록시는 /v1/messages와 같은 경로를 추가합니다. 사용자 지정 게이트웨이를 사용하지 않는 한 기본값을 유지하세요.",
-        "dispatch_mode": "디스패치 모드",
         "dispatch_mode_tooltip": "Anthropic 요청에 z.ai를 사용하는 시점을 제어합니다: 끄기 = 사용 안 함; 모든 Anthropic 요청 = 모든 것을 전달; 풀링됨 = Google 계정과 라운드 로빈으로 z.ai를 하나의 슬롯으로 추가; 대체 = Google 계정이 없을 때만 z.ai 사용.",
         "api_key": "API 키",
         "api_key_tooltip": "z.ai 요청 인증에 사용되는 API 키입니다. 로컬에 저장되며 z.ai 및 MCP 기능에 필요합니다.",
@@ -899,12 +899,6 @@
           "empty": "구성된 재정의 규칙이 없습니다.",
           "from_placeholder": "From (예: claude-3-opus)",
           "to_placeholder": "To (예: glm-4)"
-        },
-        "modes": {
-          "off": "끄기",
-          "exclusive": "모든 Anthropic 요청",
-          "pooled": "계정 풀 라운드로빈 참여 (사용 가능한 Key마다 1 슬롯)",
-          "fallback": "대체 전용"
         },
         "mcp": {
           "title": "MCP 서버 (로컬 프록시 경유)",

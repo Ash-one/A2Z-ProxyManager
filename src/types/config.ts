@@ -124,8 +124,6 @@ export interface StickySessionConfig {
     max_wait_seconds: number;
 }
 
-export type ZaiDispatchMode = 'off' | 'exclusive' | 'pooled' | 'fallback';
-
 export type ZaiProvider = 'zai' | 'bigmodel' | 'zcode_plan';
 
 // [zcode T2] 凭证模式：apiKey=直连转发（T1 起）；jwt=Coding Plan 订阅 JWT（Plan 通道，T3 前不参与转发）
@@ -164,7 +162,6 @@ export interface ZaiConfig {
     base_url: string;
     api_key: string;
     keys?: ZaiKeyEntry[];
-    dispatch_mode: ZaiDispatchMode;
     model_mapping?: Record<string, string>;
     models: ZaiModelDefaults;
     mcp: ZaiMcpConfig;

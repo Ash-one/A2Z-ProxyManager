@@ -163,8 +163,8 @@ pub async fn forward_anthropic_json(
             lower.starts_with("glm-") || lower.starts_with("zai:") || lower.starts_with("zcode:")
         })
         .unwrap_or(false);
-    let zai_enabled = zai.enabled
-        && (!matches!(zai.dispatch_mode, crate::proxy::ZaiDispatchMode::Off) || is_glm_model);
+    // [zcode T4 修订] 唯一分发语义：本转发函数仅承接 GLM 系列模型；提供商开关为通道总闸。
+    let zai_enabled = zai.enabled && is_glm_model;
     if !zai_enabled {
         return (StatusCode::BAD_REQUEST, "z.ai is disabled").into_response();
     }

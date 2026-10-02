@@ -413,7 +413,8 @@
     "import_option_title": "Manuel İçe Aktarma",
     "import_option_desc": "API anahtarı veya abonelik JWT'si yapıştırın; otomatik algılanıp havuza eklenir.",
     "or": "veya",
-    "quota_refresh": "Bu hesabın kotasını yenile"
+    "quota_refresh": "Bu hesabın kotasını yenile",
+    "dispatch_hint": "GLM ailesi modeller (glm-* / zai:* / zcode:*) bu kanal tarafından kesin olarak karşılanır; diğer istekler Google hesap havuzuna gider. Kanalı devre dışı bırakmak için anahtarı kapatın."
   },
   "settings": {
     "save": "Ayarları Kaydet",
@@ -811,7 +812,6 @@
         "enabled_tooltip": "Seçilen dağıtım moduna göre Anthropic istekleri için z.ai yönlendirmesini etkinleştirir.",
         "base_url": "Temel URL",
         "base_url_tooltip": "Anthropic-uyumlu temel URL. Proxy /v1/messages gibi yolları ekler. Özel bir ağ geçidi kullanmıyorsanız varsayılanı bırakın.",
-        "dispatch_mode": "Dağıtım Modu",
         "dispatch_mode_tooltip": "Anthropic istekleri için z.ai'nin ne zaman kullanılacağını kontrol eder: Off devre dışı bırakır; All Anthropic requests her şeyi yönlendirir; Pooled Google hesaplarıyla round-robin'de bir slot olarak z.ai ekler; Fallback sadece Google hesabı olmadığında z.ai kullanır.",
         "api_key": "API Anahtarı",
         "api_key_tooltip": "z.ai'ye istekleri doğrulamak için kullanılan API anahtarı. Yerel olarak saklanır ve z.ai ve MCP özellikleri için gereklidir.",
@@ -894,12 +894,6 @@
           "empty": "Geçersiz kılma kuralı yapılandırılmadı.",
           "from_placeholder": "Örn: claude-3-opus",
           "to_placeholder": "Örn: glm-4"
-        },
-        "modes": {
-          "off": "Kapalı",
-          "exclusive": "Tüm Anthropic istekleri",
-          "pooled": "Hesap havuzu round-robin’sine katıl (kullanılabilir her anahtar = 1 slot)",
-          "fallback": "Sadece Yedek"
         },
         "mcp": {
           "title": "MCP Sunucuları (yerel proxy üzerinden)",

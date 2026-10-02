@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { KeyRound, Zap } from 'lucide-react';
 import { ZaiKeyPoolEditor, DEFAULT_ZAI } from '../components/proxy/ZaiKeyPoolEditor';
 import { useConfigStore } from '../stores/useConfigStore';
-import { ZaiConfig, ZaiDispatchMode } from '../types/config';
+import { ZaiConfig } from '../types/config';
 
 /**
  * ZCode 账号页（zcode T4）——与「账号管理」（antigravity）同层级的订阅账号管理页。
@@ -45,12 +45,13 @@ function ZcodeAccounts() {
                     requestTimeout={config?.proxy.request_timeout}
                 />
 
-                {/* [zcode T4 修订] 转发调度（自 API 反代页 z.ai 提供商卡迁入）：
-                    决定 z.ai 通道如何参与消息转发；GLM 系模型始终确定性直走本通道 */}
-                <div className="rounded-xl border border-gray-200 dark:border-base-200 bg-white dark:bg-base-100 p-4 space-y-3">
-                    <div className="flex items-center justify-between">
+                {/* [zcode T4 修订] 转发调度（自 API 反代页 z.ai 提供商卡迁入）。
+                    样式与账号卡区分：配置面使用琥珀色浅底 + 左侧强调条，账号卡为白底实体卡 */}
+                <div className="relative overflow-hidden rounded-xl border border-amber-200 dark:border-amber-500/20 bg-amber-50/60 dark:bg-amber-500/5 p-4 space-y-3">
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-400 dark:bg-amber-500/60" />
+                    <div className="flex items-center justify-between pl-2">
                         <div className="flex items-center gap-2">
-                            <div className="w-7 h-7 rounded-lg bg-amber-50 dark:bg-amber-500/10 flex items-center justify-center text-amber-500 shrink-0">
+                            <div className="w-7 h-7 rounded-lg bg-amber-100 dark:bg-amber-500/15 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0">
                                 <Zap size={14} />
                             </div>
                             <span className="text-xs font-semibold text-gray-800 dark:text-gray-100">
@@ -75,33 +76,20 @@ function ZcodeAccounts() {
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-                                {t('proxy.config.zai.base_url')}
-                            </label>
-                            <input
-                                type="text"
-                                value={config?.proxy.zai?.base_url || 'https://api.z.ai/api/anthropic'}
-                                onChange={(e) => updateZai({ base_url: e.target.value })}
-                                className="input input-sm h-8 min-h-8 text-xs input-bordered w-full font-mono"
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
-                                {t('proxy.config.zai.dispatch_mode')}
-                            </label>
-                            <select
-                                className="select select-sm h-8 min-h-8 text-xs select-bordered w-full"
-                                value={config?.proxy.zai?.dispatch_mode || 'off'}
-                                onChange={(e) => updateZai({ dispatch_mode: e.target.value as ZaiDispatchMode })}
-                            >
-                                <option value="off">{t('proxy.config.zai.modes.off')}</option>
-                                <option value="exclusive">{t('proxy.config.zai.modes.exclusive')}</option>
-                                <option value="pooled">{t('proxy.config.zai.modes.pooled')}</option>
-                                <option value="fallback">{t('proxy.config.zai.modes.fallback')}</option>
-                            </select>
-                        </div>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-relaxed pl-2">
+                        {t('zcodeAccounts.dispatch_hint')}
+                    </p>
+
+                    <div className="pl-2 space-y-1">
+                        <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                            {t('proxy.config.zai.base_url')}
+                        </label>
+                        <input
+                            type="text"
+                            value={config?.proxy.zai?.base_url || 'https://api.z.ai/api/anthropic'}
+                            onChange={(e) => updateZai({ base_url: e.target.value })}
+                            className="input input-sm h-8 min-h-8 text-xs input-bordered w-full font-mono bg-white dark:bg-base-100"
+                        />
                     </div>
                 </div>
             </div>
