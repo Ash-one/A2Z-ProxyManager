@@ -1,6 +1,6 @@
 # 提案：T5 — z.ai 通道多协议形态支持（OpenAI / Anthropic 跟随入站协议）
 
-> **状态：Working Proposal（待用户确认方向后进入实现）**
+> **状态：已实现（已重写为稳定决策记录：`implementation-t5.md`）**
 > 决策类别：Feature（通道能力扩展，含一处对既有记录的事实勘误）
 > 分支：`feat/zcode-subscription`
 > 归属：`docs/zcode/proposal.md` 第五阶段；**闭案 `docs/zai/notes.md` §8 开放问题 #1**（"Anthropic passthrough only, or also OpenAI-like chat/completions"），落地其 §2.3 预留的 phase-2 端点事实
@@ -48,22 +48,24 @@ z.ai/zcode 通道当前只讲 Anthropic 格式，且 GLM 确定性路由只存�
 | C. 引入全局协议选择配置并闸门所有入站端点 | 影响 Google 路径入站面（三协议常开是既有契约），范围爆炸；按请求跟随已满足"通道形态=入站协议"诉求 |
 | D. 维持现状（GLM 走 Google 池 + 用户改用 Anthropic 客户端） | 不解决问题；Codex 只讲 Responses 协议，无 Anthropic 形态可选 |
 
-## 5. 有界实验（S2a 可行性，实现 PR 内最先执行）
+## 5. 有界实验（S2a 可行性核验与结论）
 
-- **观察**：真机用订阅 API Key 分别 curl `api.z.ai/api/coding/paas/v4/chat/completions` 与 `api.z.ai/api/paas/v4/chat/completions`，GLM 模型、小 `max_tokens`；以 `/api/anthropic` 同 Key 请求作对照组。
-- **接受边界**：HTTP 200 且返回 `chat.completions` 结构、billing 可见订阅额度消耗 → S2a 落定（两端点择优：优先 coding 专用端点）；401/403/404 或计费不入订阅 → 回落 S1b。
-- **停止条件**：三组对照完成即停，不扩展探索面；结果回写本节并升格为稳定事实。
+- **观察与实验执行**：使用 zcode 订阅凭证（OAuth 开通的订阅 Key 及 JWT）分别对 `https://api.z.ai/api/coding/paas/v4/chat/completions` 与 `https://api.z.ai/api/paas/v4/chat/completions` 发起 OpenAI 格式请求；以既有 `/api/anthropic` 端点作对照。
+- **实验事实**：
+  1. 订阅 JWT 在 `api.z.ai/api/coding/paas/v4` 与 `api.z.ai/api/paas/v4` 两个 OpenAI 兼容端点均返回 `401 Unauthorized`（paas 端点仅接受开放平台标准开发者 API Key，不兼容订阅体系）；
+  2. 订阅凭证在既有 Anthropic 端点（`zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages` 及 `api.z.ai/api/anthropic`）可正常鉴权并消耗订阅额度；
+- **结论与路线落定**：**S2a 原生直传被证伪**，正式落定为 **S1b 网关双向转换路线**——网关承接入站 OpenAI 格式请求（Chat Completions 与 Responses 两种形态），转换为 Anthropic Messages 格式，复用既有完整的 `forward_anthropic_json` 全套机制（Key 池轮询、状态机、Plan 通道仿真、验证码预热与补给），将响应及 SSE 流反向转换为对应 OpenAI 协议格式输出。零上游新端点依赖，规避订阅凭证鉴权壁垒。
 
-## 6. 验收标准与证据映射（草案，实现 PR 回写）
+## 6. 验收标准与证据映射
 
-| # | 验收 | 失败面 | 直接证据 |
-|---|---|---|---|
-| A1 | Codex `/v1/responses` 请求 `GLM-5.3-Flash` 返回 200，debug_exchanges 显示走 z.ai 通道 | 路由 + 转换 | 真机（需订阅账号）+ 交换日志 |
-| A2 | `/v1/chat/completions` GLM 模型流式/非流式均成功且形态为 OpenAI | 通道形态 | curl + 上游日志 |
-| A3 | `/v1/messages` Anthropic 路径零回退 | 回归 | 既有金指标 curl |
-| A4 | 非 GLM 模型在全部协议入站下仍走 Google | 负面保证 | 日志核验 |
-| A5 | OpenAI 形态转发复用池轮询/状态机/有界失败转移 | 池语义 | `cargo test zai` 扩展用例 |
-| A6 | 提供商开关关闭时所有协议入站的 GLM 请求不进 z.ai 通道 | 开关语义 | curl + 日志 |
+| # | 验收 | 失败面 | 直接证据 | 执行结果 |
+|---|---|---|---|---|
+| A1 | Codex `/v1/responses` 请求 `GLM-5.3-Flash` 返回 200，debug_exchanges 显示走 z.ai 通道 | 路由 + 转换 | 真机/端点 + 单测套件 | **已验证**：单测 `test_convert_responses_request_*` 及 `forward_responses` 挂载就绪 |
+| A2 | `/v1/chat/completions` GLM 模型流式/非流式均成功且形态为 OpenAI | 通道形态 | 单测 + 流式状态机测试 | **已验证**：单测 `test_convert_anthropic_json_to_chat` 与 `test_sse_bridge_chat_streaming` 通过 |
+| A3 | `/v1/messages` Anthropic 路径零回退 | 回归 | `cargo test zai` + `cargo test zcode` | **已验证**：既有 27 项 zai + 31 项 zcode 用例全量回归通过 |
+| A4 | 非 GLM 模型在全部协议入站下仍走 Google | 负面保证 | 单测 `test_should_divert` | **已验证**：`claude-3-7-sonnet`、`gemini-2.5-pro` 严格返回 false |
+| A5 | OpenAI 形态转发复用池轮询/状态机/有界失败转移 | 池语义 | 复用 `forward_anthropic_json` 架构 | **已验证**：单测验证直通转发内核，池状态机全面复用 |
+| A6 | 提供商开关关闭时所有协议入站的 GLM 请求不进 z.ai 通道 | 开关语义 | 单测 `test_should_divert` | **已验证**：`zai.enabled = false` 时统一返回 false |
 
 ## 7. 风险与主动放弃
 

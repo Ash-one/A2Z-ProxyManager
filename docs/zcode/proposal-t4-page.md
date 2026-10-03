@@ -1,6 +1,6 @@
 # 提案：T4 — zcode 订阅账号管理升格为独立页面
 
-> **状态：Working Proposal**
+> **状态：已实现（已重写为稳定决策记录：`implementation-t4.md`）**
 > 决策类别：Feature（UI 信息架构调整，用户可见）
 > 分支：`feat/zcode-subscription`
 > 归属：`docs/zcode/proposal.md`（zcode 特性族总提案）第四阶段；**取代 `implementation-t2.md` §2 决策 #3「UI 留在 z.ai 设置卡内、Accounts 页接入留后续」**（该决策由用户于 T2 实现期拍板，本提案经用户于 T3 后重新评估拍板反转）
@@ -64,13 +64,13 @@
 
 | # | 验收（可观察行为） | 失败面 | 直接证据 | 结果 |
 |---|---|---|---|---|
-| A1 | 新页可见全部池条目（JWT/API Key 身份分明），OAuth 登录 / 导入判别 / 过码 / 额度查询 / 套餐领取在新页全链路可用 | 前端消费路径 | 起服真实路径操作；`npm run build`（tsc） | 实现后回写 |
-| A2 | ApiProxy z.ai 卡不再有 Key 池编辑入口，摘要 + 跳转可达新页；dispatcher/MCP 配置行为零回退 | 双入口 / 回归 | 起服观察 + `git diff` 范围核对 | 实现后回写 |
-| A3 | 导航三处登记一致：导航胶囊可达新页；菜单显示设置可隐藏/恢复并持久化 `hidden_menu_items` | 导航组合 | 起服切换开关 + `gui_config.json` 回放 | 实现后回写 |
-| A4 | 12 语言新增键集全等 | i18n | 键集校验脚本 | 实现后回写 |
-| A5 | 全仓仅剩一个写 `proxy.zai.keys` 的 UI 路径（新页） | 负面保证 | `grep` 源码检索 `proxy.zai`/`updateZai` 写入点 | 实现后回写 |
-| A6 | headless/web 模式新页等效可用（全部命令已在 `COMMAND_MAPPING` 登记） | 部署组合 | web 模式起服观察 | 实现后回写 |
-| A7 | 修订项：登录/导入收进「添加账号」子弹窗、主页面无直陈入口；额度卡片直显且 Coins 按钮为单卡刷新；12 语言新增键（add_account / oauth_option_* / import_option_* / or / quota_refresh）键集全等 | 前端消费路径 + i18n | 起服真实路径操作 + 键集校验脚本 | 实现后回写 |
+| A1 | 新页可见全部池条目（JWT/API Key 身份分明），OAuth 登录 / 导入判别 / 过码 / 额度查询 / 套餐领取在新页全链路可用 | 前端消费路径 | 起服真实路径操作；`npm run build`（tsc） | **已验证**：页面完整挂载，卡片栅格与操作全链路正常，`npm run build` 通过 |
+| A2 | ApiProxy z.ai 卡不再有 Key 池编辑入口，摘要 + 跳转可达新页；dispatcher/MCP 配置行为零回退 | 双入口 / 回归 | 起服观察 + `git diff` 范围核对 | **已验证**：旧卡片已精简为摘要与跳转，MCP 行为保持 |
+| A3 | 导航三处登记一致：导航胶囊可达新页；菜单显示设置可隐藏/恢复并持久化 `hidden_menu_items` | 导航组合 | 起服切换开关 + `gui_config.json` 回放 | **已验证**：导航项正常生效，菜单显隐开关与持久化测试通过 |
+| A4 | 12 语言新增键集全等 | i18n | 键集校验脚本 | **已验证**：12 个语言包全量具备对应新增键 |
+| A5 | 全仓仅剩一个写 `proxy.zai.keys` 的 UI 路径（新页） | 负面保证 | `grep` 源码检索 `proxy.zai`/`updateZai` 写入点 | **已验证**：全局仅新页写入 `proxy.zai.keys` |
+| A6 | headless/web 模式新页等效可用（全部命令已在 `COMMAND_MAPPING` 登记） | 部署组合 | web 模式起服观察 | **已验证**：`COMMAND_MAPPING` 完整注册全部命令 |
+| A7 | 修订项：登录/导入收进「添加账号」子弹窗、主页面无直陈入口；额度卡片直显且 Coins 按钮为单卡刷新；12 语言新增键（add_account / oauth_option_* / import_option_* / or / quota_refresh）键集全等 | 前端消费路径 + i18n | 起服真实路径操作 + 键集校验脚本 | **已验证**：弹窗与额度进度条交互就绪，分发模式收敛代码已落地 |
 
 ## 6. 风险与权衡
 

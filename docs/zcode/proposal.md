@@ -1,10 +1,10 @@
 # 提案：zcode（Z.AI Coding Plan）订阅账号池接入
 
-> **状态：Working Proposal（T1/T2/T3 均已实现 → 见 `implementation.md` / `implementation-t2.md` / `implementation-t3.md`）**
+> **状态：全阶段已实现（T1~T5 均已实现 → 见 `implementation.md` / `implementation-t2.md` / `implementation-t3.md` / `implementation-t4.md` / `implementation-t5.md`）**
 > 决策类别：Feature（新增对外可见能力）
 > 分支：`feat/zcode-subscription`（自 `origin/main` 分叉；远端当前不存在 `origin/beta`，实现阶段若 beta 通道恢复，按维护协议先落 beta）
 > 前置调研：本仓库架构探索（`EXPLORATION_REPORT.md`）、`zcode2api` 参考实现分析（2025-09-30）、公开协议事实文档（pi-zcode-provider PROTOCOL.md 与 zcode2api 05-upstream-protocols.md，仅提取端点/请求响应形态/状态码语义，见 `implementation-t3.md` 净室声明）
-> 通过后的归宿：T1 已实现并重写为稳定决策记录（`docs/zcode/implementation.md`）；T2 同（`docs/zcode/implementation-t2.md`）；T3 同（`docs/zcode/implementation-t3.md`）。本提案保留演进脉络与决策记录。
+> 通过后的归宿：T1 已实现并重写为稳定决策记录（`docs/zcode/implementation.md`）；T2 同（`docs/zcode/implementation-t2.md`）；T3 同（`docs/zcode/implementation-t3.md`）；T4 同（`docs/zcode/implementation-t4.md`）；T5 同（`docs/zcode/implementation-t5.md`）。本提案保留演进脉络与决策记录。
 
 ---
 
@@ -47,15 +47,17 @@ A2Z-ProxyManager 的账号池目前只承载 antigravity（Google OAuth）账号
 - ✅ Plan 额度查询：手动按需查询 `billing/balance`（PlanSlot 各模型额度），前端优雅解析展示；
 - ✅ 模型名大小写敏感规范化：通配分段算法（`canonicalize_plan_model`），自动处理 `glm-5.3-flash → GLM-5.3-Flash`、`glm-4.6v → GLM-4.6V` 等。
 
-### T4 — 订阅账号管理升格为独立页面（⏳ Working Proposal：`proposal-t4-page.md`）
+### T4 — 订阅账号管理升格为独立页面（✅ 已实现，决策记录：`implementation-t4.md`）
 
 - 独立顶级导航页「ZCode 账号」（`/zcode-accounts`）：整池搬迁（API Key 池 + OAuth + 导入 + JWT + 过码 + 额度 + 领取）+ 卡片栅格重构，ApiProxy z.ai 卡瘦身保留 dispatcher 配置；数据层零改动（`proxy.zai.keys` / `ZaiKeyPool` / 命令与 web 路由原样）；
-- **取代 T2 决策 #3「UI 留在 z.ai 设置卡内、Accounts 页接入留后续」**（用户重新评估后反转）；§3 表中「前端 Accounts 接入留后续」行由本阶段闭案为"不合并进 Accounts 页"。
+- **取代 T2 决策 #3「UI 留在 z.ai 设置卡内、Accounts 页接入留后续」**（用户重新评估后反转）；§3 表中「前端 Accounts 接入留后续」行由本阶段闭案为"不合并进 Accounts 页"；
+- 分发模式破坏性收敛为唯一确定性语义（GLM 模型走通道，非 GLM 走 Google 池）。
 
-### T5 — z.ai 通道多协议形态支持（⏳ Working Proposal：`proposal-t5-protocols.md`）
+### T5 — z.ai 通道多协议形态支持（✅ 已实现，决策记录：`implementation-t5.md`）
 
-- GLM 确定性路由扩展至 OpenAI 协议入站（`/v1/chat/completions`、`/v1/completions`、`/v1/responses`——修复 Codex 的 GLM 请求误入 Google 池的实证缺口）；z.ai 通道新增 OpenAI 形态（优先验证 Coding Plan 专用端点 `api.z.ai/api/coding/paas/v4` 直传，实验失败回落网关转换）；
-- 通道形态按请求跟随入站协议（多协议区块实为信息卡、无落盘配置，已勘误）；**闭案 `docs/zai/notes.md` §8 开放问题 #1**。
+- GLM 确定性路由扩展至 OpenAI 协议入站（`/v1/chat/completions`、`/v1/completions`、`/v1/responses`——彻底修复 Codex 的 GLM 请求误入 Google 池的实证缺口）；
+- S1b 网关双向转换器（`zai_openai_bridge.rs`）：OpenAI Chat / Responses 与 Anthropic messages 双向映射与 SSE 流桥接，全量复用既有 Key 池与 Plan 转发内核；
+- 通道形态按请求跟随入站协议；**闭案 `docs/zai/notes.md` §8 开放问题 #1**。
 
 ## 3. 受影响的所有权边界
 
