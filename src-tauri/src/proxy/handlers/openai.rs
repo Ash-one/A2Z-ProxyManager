@@ -1777,6 +1777,23 @@ pub async fn handle_chat_completions(
         crate::proxy::payload_audit::reorder_payload_fields(&debug_value_without_inline_data(&body))
     });
 
+    // [zcode T5] GLM 确定性路由（按请求跟随入站协议）：OpenAI 入站 → z.ai 桥接。
+    // docs/zcode/proposal-t5-protocols.md；与 claude.rs 固定分发语义同源（开关+池+GLM 系）。
+    {
+        let zai = state.zai.read().await.clone();
+        let requested_model = body
+            .get("model")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        if crate::proxy::providers::zai_openai_bridge::should_divert(&zai, &requested_model) {
+            return Ok(crate::proxy::providers::zai_openai_bridge::forward_chat(
+                &state, headers, body,
+            )
+            .await);
+        }
+    }
+
     // [NEW] 自动检测并转换 Responses 格式
     // 如果请求包含 instructions 或 input 但没有 messages，则认为是 Responses 格式
     let is_responses_format = !body.get("messages").is_some()
@@ -3052,6 +3069,25 @@ pub async fn handle_completions(
         "Received /v1/completions or /v1/responses payload: {} bytes",
         serialized_json_len(&body)
     );
+
+    // [zcode T5] GLM 确定性路由（按请求跟随入站协议）：Codex /v1/responses → z.ai 桥接。
+    // 注意：绕过 previous_response_id 服务端历史恢复（Codex 默认 store=false 全量发历史），
+    // 已知限制记录于 proposal-t5-protocols.md §3。
+    {
+        let zai = state.zai.read().await.clone();
+        let requested_model = body
+            .get("model")
+            .and_then(Value::as_str)
+            .unwrap_or("")
+            .to_string();
+        if crate::proxy::providers::zai_openai_bridge::should_divert(&zai, &requested_model) {
+            return crate::proxy::providers::zai_openai_bridge::forward_responses(
+                &state, headers, body,
+            )
+            .await;
+        }
+    }
+
     let debug_cfg = state.debug_logging.read().await.clone();
     let original_body = debug_logger::is_enabled(&debug_cfg).then(|| {
         crate::proxy::payload_audit::reorder_payload_fields(&debug_value_without_inline_data(&body))
