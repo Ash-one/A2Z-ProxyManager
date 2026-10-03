@@ -102,6 +102,10 @@ pub struct SelectedZaiKey {
     pub mode: ZaiKeyMode,
     /// zcode T3：账号配对身份（验证码存储键锚点）
     pub account_id: String,
+    /// zcode T2：账号邮箱（流量监控归因展示用）
+    pub user_email: String,
+    /// 可选备注（流量监控归因展示用）
+    pub label: String,
     /// zcode T3：持久化设备档案（Plan 通道身份头；可能为 Null → 运行时生成）
     pub device_profile: serde_json::Value,
 }
@@ -282,6 +286,8 @@ impl ZaiKeyPool {
             masked_key: mask_key(&entry.cfg.key),
             mode: entry.cfg.mode,
             account_id: entry.cfg.account_id.clone(),
+            user_email: entry.cfg.user_email.clone(),
+            label: entry.cfg.label.clone(),
             device_profile: entry.cfg.device_profile.clone(),
         })
     }

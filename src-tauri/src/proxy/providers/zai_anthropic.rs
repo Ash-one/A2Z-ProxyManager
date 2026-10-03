@@ -120,6 +120,40 @@ fn set_zai_auth(headers: &mut HeaderMap, incoming: &HeaderMap, api_key: &str) {
     }
 }
 
+/// 流量监控账号归因展示：优先账号邮箱，其次账号配对身份，最后掩码凭证。
+fn zai_account_display(selected: &crate::proxy::providers::zai_pool::SelectedZaiKey) -> String {
+    if !selected.user_email.trim().is_empty() {
+        selected.user_email.trim().to_string()
+    } else if !selected.account_id.trim().is_empty() {
+        selected.account_id.trim().to_string()
+    } else {
+        selected.masked_key.clone()
+    }
+}
+
+/// 流量监控归因头：`X-Mapped-Model` / `X-Account-Email` 与 Google 池通道语义对齐，
+/// 供 monitor 中间件展示「模型 => 上游映射」与「账号」列（无效 HeaderValue 静默跳过）。
+fn attach_monitor_headers(
+    builder: axum::http::response::Builder,
+    mapped_model: Option<&str>,
+    account_display: Option<&str>,
+) -> axum::http::response::Builder {
+    let builder = match mapped_model {
+        Some(m) if !m.trim().is_empty() => match HeaderValue::from_str(m) {
+            Ok(v) => builder.header("x-mapped-model", v),
+            Err(_) => builder,
+        },
+        _ => builder,
+    };
+    match account_display {
+        Some(a) if !a.trim().is_empty() => match HeaderValue::from_str(a) {
+            Ok(v) => builder.header("x-account-email", v),
+            Err(_) => builder,
+        },
+        _ => builder,
+    }
+}
+
 /// Recursively remove cache_control from all nested objects/arrays
 /// [FIX #290] This is a defensive fix that works regardless of serde annotations
 pub fn deep_remove_cache_control(value: &mut Value) {
@@ -169,9 +203,12 @@ pub async fn forward_anthropic_json(
         return (StatusCode::BAD_REQUEST, "z.ai is disabled").into_response();
     }
 
+    // [zcode T5] 流量监控归因：记录映射后的上游模型，随响应头回传给 monitor 中间件
+    let mut mapped_model: Option<String> = None;
     if let Some(model) = body.get("model").and_then(|v| v.as_str()) {
         let mapped = map_model_for_zai(model, &zai);
         body["model"] = Value::String(mapped.clone());
+        mapped_model = Some(mapped.clone());
 
         // [FIX] Caching for z.ai (to support thinking-filter)
         if let Some(sig) = body
@@ -352,11 +389,21 @@ pub async fn forward_anthropic_json(
             Ok(r) => r,
             Err(e) => {
                 // 网络级失败与具体 Key 无关：不更新状态机，直接上抛
-                return (
-                    StatusCode::BAD_GATEWAY,
-                    format!("Upstream request failed: {}", e),
-                )
-                    .into_response();
+                let out = Response::builder().status(StatusCode::BAD_GATEWAY);
+                let out = attach_monitor_headers(
+                    out,
+                    mapped_model.as_deref(),
+                    Some(&zai_account_display(&selected)),
+                );
+                return out
+                    .body(Body::from(format!("Upstream request failed: {}", e)))
+                    .unwrap_or_else(|_| {
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "Failed to build response",
+                        )
+                            .into_response()
+                    });
             }
         };
 
@@ -370,6 +417,12 @@ pub async fn forward_anthropic_json(
             if let Some(ct) = resp.headers().get(header::CONTENT_TYPE) {
                 out = out.header(header::CONTENT_TYPE, ct.clone());
             }
+            // [zcode T5] 流量监控归因：本次服务账号 + 上游映射模型
+            out = attach_monitor_headers(
+                out,
+                mapped_model.as_deref(),
+                Some(&zai_account_display(&selected)),
+            );
             let stream = resp.bytes_stream().map(|chunk| match chunk {
                 Ok(b) => Ok::<Bytes, std::io::Error>(b),
                 Err(e) => Ok(Bytes::from(format!("Upstream stream error: {}", e))),
@@ -442,6 +495,12 @@ pub async fn forward_anthropic_json(
         if let Some(ct) = content_type {
             out = out.header(header::CONTENT_TYPE, ct);
         }
+        // [zcode T5] 流量监控归因：最终尝试的账号 + 上游映射模型（排障定位哪支 Key 失败）
+        out = attach_monitor_headers(
+            out,
+            mapped_model.as_deref(),
+            Some(&zai_account_display(&selected)),
+        );
         return out.body(Body::from(error_body)).unwrap_or_else(|_| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -457,4 +516,61 @@ pub async fn forward_anthropic_json(
         "Failed to build response",
     )
         .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::proxy::config::{ZaiKeyMode, ZaiProvider};
+    use crate::proxy::providers::zai_pool::SelectedZaiKey;
+
+    fn slot(user_email: &str, account_id: &str) -> SelectedZaiKey {
+        SelectedZaiKey {
+            key: "secret-key-value".to_string(),
+            provider: ZaiProvider::Zai,
+            masked_key: "secret...alue".to_string(),
+            mode: ZaiKeyMode::ApiKey,
+            account_id: account_id.to_string(),
+            user_email: user_email.to_string(),
+            label: String::new(),
+            device_profile: serde_json::Value::Null,
+        }
+    }
+
+    #[test]
+    fn account_display_prefers_email_then_account_id_then_masked_key() {
+        assert_eq!(
+            zai_account_display(&slot("owner@example.com", "acc-1")),
+            "owner@example.com"
+        );
+        assert_eq!(zai_account_display(&slot("  ", "acc-1")), "acc-1");
+        // 无邮箱无账号身份时回退掩码凭证，绝不泄露 Key 原文
+        assert_eq!(zai_account_display(&slot("", "")), "secret...alue");
+    }
+
+    #[test]
+    fn monitor_headers_attached_and_invalid_values_skipped() {
+        let resp = attach_monitor_headers(
+            Response::builder(),
+            Some("GLM-5.3-Flash"),
+            Some("owner@example.com"),
+        )
+        .body(())
+        .unwrap();
+        assert_eq!(
+            resp.headers().get("x-mapped-model").unwrap(),
+            "GLM-5.3-Flash"
+        );
+        assert_eq!(
+            resp.headers().get("x-account-email").unwrap(),
+            "owner@example.com"
+        );
+
+        // 空白值跳过；无 HeaderValue 合法形态的值不 panic
+        let resp = attach_monitor_headers(Response::builder(), Some("   "), Some(""))
+            .body(())
+            .unwrap();
+        assert!(resp.headers().get("x-mapped-model").is_none());
+        assert!(resp.headers().get("x-account-email").is_none());
+    }
 }

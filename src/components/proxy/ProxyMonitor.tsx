@@ -1090,6 +1090,7 @@ export const ProxyMonitor: React.FC<ProxyMonitorProps> = ({ className }) => {
     const quickFilters = [
         { label: t('monitor.filters.all'), value: '' },
         { label: 'claude', value: 'claude' },
+        { label: 'glm', value: 'glm' },
         { label: 'flash', value: 'flash' },
         { label: 'pro', value: 'pro' },
         { label: 'agent', value: 'agent' },
