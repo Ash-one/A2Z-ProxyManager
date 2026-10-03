@@ -64,7 +64,7 @@
     "selected": "Selected",
     "claude_series": "Claude Series",
     "maximize": "Maximize",
-    "app_name": "Antigravity Tools"
+    "app_name": "A2Z-ProxyManager"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -457,7 +457,7 @@
       "auto_launch": "Launch at Startup",
       "auto_launch_enabled": "Enabled",
       "auto_launch_disabled": "Disabled",
-      "auto_launch_desc": "Automatically launch Antigravity Tools when system starts",
+      "auto_launch_desc": "Automatically launch A2Z-ProxyManager when system starts",
       "quiet_autostart": "Quiet Startup (Stay in Tray)",
       "quiet_autostart_desc": "When the app is launched at login, keep the main window hidden. If Lightweight Mode is also on, the webview is released immediately. Opening the app yourself still shows the window. If the system tray is unavailable, the window is shown instead.",
       "quiet_autostart_enabled": "Quiet startup enabled",
@@ -754,7 +754,7 @@
       "long_prompt_warning": "Prompt is quite long (over 2000 chars) and may consume significant context space."
     },
     "branding": {
-      "title": "Antigravity Tools",
+      "title": "A2Z-ProxyManager",
       "subtitle": "Professional Account Management"
     }
   },
@@ -1898,7 +1898,7 @@
   "apiKeyFun": {
     "title": "APIKEY.FUN Hub",
     "eyebrow": "Hub",
-    "description": "The official Antigravity Tools API Hub, providing stable, open, and cost-effective large model API services. Supports mainstream models like Claude, OpenAI, and Gemini. Ideal for unified configuration in Codex, Gemini CLI, Claude Code, and other development tools.",
+    "description": "The official A2Z-ProxyManager API Hub, providing stable, open, and cost-effective large model API services. Supports mainstream models like Claude, OpenAI, and Gemini. Ideal for unified configuration in Codex, Gemini CLI, Claude Code, and other development tools.",
     "viewNow": "View Now",
     "usage": {
       "remainingAmount": "Remaining",

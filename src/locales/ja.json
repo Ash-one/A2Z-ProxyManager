@@ -64,7 +64,7 @@
     "selected": "選択済み",
     "claude_series": "Claude シリーズ",
     "maximize": "最大化",
-    "app_name": "Antigravity Tools"
+    "app_name": "A2Z-ProxyManager"
   },
   "nav": {
     "dashboard": "ダッシュボード",
@@ -436,7 +436,7 @@
       "auto_launch": "起動時に実行",
       "auto_launch_enabled": "有効",
       "auto_launch_disabled": "無効",
-      "auto_launch_desc": "システム起動時にAntigravity Toolsを自動的に起動する",
+      "auto_launch_desc": "システム起動時にA2Z-ProxyManagerを自動的に起動する",
       "quiet_autostart": "静かな起動（トレイに残す）",
       "quiet_autostart_desc": "ログイン時の自動起動ではメインウィンドウを表示しません。軽量モードも有効な場合は WebView を直ちに解放します。自分で開いたときはウィンドウを表示します。システムトレイが使えない場合はウィンドウを表示します。",
       "quiet_autostart_enabled": "静かな起動を有効にしました",
@@ -729,7 +729,7 @@
       "long_prompt_warning": "プロンプトがかなり長く（2000文字以上）、コンテキスト スペースを大幅に消費する可能性があります。"
     },
     "branding": {
-      "title": "Antigravity Tools",
+      "title": "A2Z-ProxyManager",
       "subtitle": "プロフェッショナルなアカウント管理"
     }
   },
@@ -1742,7 +1742,7 @@
   "apiKeyFun": {
     "title": "APIKEY.FUN ハブ",
     "eyebrow": "ハブ",
-    "description": "Antigravity Tools 公式提携ハブ。安定かつ高コストパフォーマンスのAPIサービスを提供します。Claude、OpenAI、Geminiなどのモデルをサポート。",
+    "description": "A2Z-ProxyManager 公式提携ハブ。安定かつ高コストパフォーマンスのAPIサービスを提供します。Claude、OpenAI、Geminiなどのモデルをサポート。",
     "viewNow": "今すぐ見る",
     "usage": {
       "remainingAmount": "残高",

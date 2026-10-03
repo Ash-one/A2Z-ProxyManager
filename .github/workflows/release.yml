@@ -193,9 +193,9 @@ jobs:
           cd src-tauri/target/*/release/bundle/macos/
           
           # 重命名 .app.tar.gz 和 .sig
-          if [ -f "Antigravity Tools.app.tar.gz" ]; then
-            mv "Antigravity Tools.app.tar.gz" "Antigravity Tools_${ARCH}.app.tar.gz"
-            mv "Antigravity Tools.app.tar.gz.sig" "Antigravity Tools_${ARCH}.app.tar.gz.sig"
+          if [ -f "A2Z-ProxyManager.app.tar.gz" ]; then
+            mv "A2Z-ProxyManager.app.tar.gz" "A2Z-ProxyManager_${ARCH}.app.tar.gz"
+            mv "A2Z-ProxyManager.app.tar.gz.sig" "A2Z-ProxyManager_${ARCH}.app.tar.gz.sig"
             echo "Renamed assets to append Arch: $ARCH"
           fi
           
@@ -207,7 +207,7 @@ jobs:
           
           if [ -f "$UPDATER_JSON" ]; then
             echo "Updating $UPDATER_JSON to use renamed assets..."
-            sed -i '' "s/Antigravity%20Tools.app.tar.gz/Antigravity%20Tools_${ARCH}.app.tar.gz/g" "$UPDATER_JSON"
+            sed -i '' "s/A2Z-ProxyManager.app.tar.gz/A2Z-ProxyManager_${ARCH}.app.tar.gz/g" "$UPDATER_JSON"
           fi
 
       # 4. 确保 Linux AppImage 包含标准 .DirIcon (解决 AppImageHub FATAL: .DirIcon is missing)
@@ -389,23 +389,23 @@ jobs:
               pub_date: $pub_date,
               platforms: {
                 "darwin-aarch64": {
-                  url: "\($dl)/Antigravity.Tools_aarch64.app.tar.gz",
+                  url: "\($dl)/A2Z-ProxyManager_aarch64.app.tar.gz",
                   signature: $mac_a64_sig
                 },
                 "darwin-x86_64": {
-                  url: "\($dl)/Antigravity.Tools_x64.app.tar.gz",
+                  url: "\($dl)/A2Z-ProxyManager_x64.app.tar.gz",
                   signature: $mac_x64_sig
                 },
                 "windows-x86_64": {
-                  url: "\($dl)/Antigravity.Tools_\($ver)_x64-setup.exe",
+                  url: "\($dl)/A2Z-ProxyManager_\($ver)_x64-setup.exe",
                   signature: $win_nsis_sig
                 },
                 "linux-x86_64": {
-                  url: "\($dl)/Antigravity.Tools_\($ver)_amd64.AppImage",
+                  url: "\($dl)/A2Z-ProxyManager_\($ver)_amd64.AppImage",
                   signature: $linux_amd64_sig
                 },
                 "linux-aarch64": {
-                  url: "\($dl)/Antigravity.Tools_\($ver)_aarch64.AppImage",
+                  url: "\($dl)/A2Z-ProxyManager_\($ver)_aarch64.AppImage",
                   signature: $linux_a64_sig
                 }
               }
@@ -437,7 +437,7 @@ jobs:
         with:
           allowUpdates: true
           tag: ${{ needs.verify-release-target.outputs.release_tag }}
-          name: "Antigravity Tools ${{ needs.verify-release-target.outputs.release_tag }}"
+          name: "A2Z-ProxyManager ${{ needs.verify-release-target.outputs.release_tag }}"
           bodyFile: "release_notes.md"
           generateReleaseNotes: true
           token: ${{ secrets.GITHUB_TOKEN }}
@@ -454,7 +454,7 @@ jobs:
         with:
           allowUpdates: true
           tag: "preview"
-          name: "Antigravity Tools Preview Channel (${{ needs.verify-release-target.outputs.release_tag }})"
+          name: "A2Z-ProxyManager Preview Channel (${{ needs.verify-release-target.outputs.release_tag }})"
           body: "Preview Channel build for version ${{ needs.verify-release-target.outputs.release_tag }}. Automatically synced for in-app Beta updater."
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: "release-files/*,updater.json"

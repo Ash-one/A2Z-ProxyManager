@@ -64,7 +64,7 @@
     "selected": "Selected",
     "claude_series": "Claude Series",
     "maximize": "Maximize",
-    "app_name": "Antigravity Tools"
+    "app_name": "A2Z-ProxyManager"
   },
   "nav": {
     "dashboard": "Panel",
@@ -436,7 +436,7 @@
       "auto_launch": "Iniciar al Arrancar",
       "auto_launch_enabled": "Habilitado",
       "auto_launch_disabled": "Deshabilitado",
-      "auto_launch_desc": "Iniciar automáticamente Antigravity Tools al arrancar el sistema",
+      "auto_launch_desc": "Iniciar automáticamente A2Z-ProxyManager al arrancar el sistema",
       "quiet_autostart": "Inicio silencioso (permanecer en la bandeja)",
       "quiet_autostart_desc": "Al iniciarse con el sistema, la ventana principal permanece oculta. Si el modo ligero también está activo, el WebView se libera de inmediato. Abrir la aplicación manualmente sigue mostrando la ventana. Si la bandeja no está disponible, se muestra la ventana.",
       "quiet_autostart_enabled": "Inicio silencioso activado",
@@ -729,7 +729,7 @@
       "long_prompt_warning": "Las instrucciones son muy largas (más de 2000 caracteres) y pueden consumir mucho espacio del contexto."
     },
     "branding": {
-      "title": "Antigravity Tools",
+      "title": "A2Z-ProxyManager",
       "subtitle": "Gestión profesional de cuentas"
     }
   },
@@ -1742,7 +1742,7 @@
   "apiKeyFun": {
     "title": "APIKEY.FUN Hub",
     "eyebrow": "Hub",
-    "description": "El API Hub oficial de Antigravity Tools, que proporciona servicios de API de modelos grandes estables, abiertos y rentables. Admite modelos populares como Claude, OpenAI y Gemini. Ideal para configuración unificada en Codex, Gemini CLI, Claude Code y otras herramientas de desarrollo.",
+    "description": "El API Hub oficial de A2Z-ProxyManager, que proporciona servicios de API de modelos grandes estables, abiertos y rentables. Admite modelos populares como Claude, OpenAI y Gemini. Ideal para configuración unificada en Codex, Gemini CLI, Claude Code y otras herramientas de desarrollo.",
     "viewNow": "Ver ahora",
     "usage": {
       "remainingAmount": "Restante",

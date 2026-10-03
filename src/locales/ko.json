@@ -64,7 +64,7 @@
     "selected": "선택됨",
     "claude_series": "Claude 시리즈",
     "maximize": "최대화",
-    "app_name": "Antigravity Tools"
+    "app_name": "A2Z-ProxyManager"
   },
   "nav": {
     "dashboard": "대시보드",
@@ -436,7 +436,7 @@
       "auto_launch": "시작 시 실행",
       "auto_launch_enabled": "활성화됨",
       "auto_launch_disabled": "비활성화됨",
-      "auto_launch_desc": "시스템 시작 시 Antigravity Tools 자동 실행",
+      "auto_launch_desc": "시스템 시작 시 A2Z-ProxyManager 자동 실행",
       "quiet_autostart": "방해 없이 시작 (트레이에 유지)",
       "quiet_autostart_desc": "로그인 시 자동 실행되면 메인 창을 띄우지 않습니다. 경량 모드도 켜져 있으면 WebView를 바로 해제합니다. 직접 실행하면 창이 표시됩니다. 시스템 트레이를 사용할 수 없으면 창을 표시합니다.",
       "quiet_autostart_enabled": "방해 없이 시작을 켰습니다",
@@ -729,7 +729,7 @@
       "long_prompt_warning": "프롬프트가 너무 깁니다 (2000자 초과). 컨텍스트 공간을 많이 차지할 수 있습니다."
     },
     "branding": {
-      "title": "Antigravity Tools",
+      "title": "A2Z-ProxyManager",
       "subtitle": "전문적인 계정 관리"
     }
   },
@@ -1742,7 +1742,7 @@
   "apiKeyFun": {
     "title": "APIKEY.FUN 허브",
     "eyebrow": "허브",
-    "description": "Antigravity Tools 공식 API 허브로, 안정적이고 개방적이며 가성비 높은 대형 모델 API 서비스를 제공합니다. Claude, OpenAI, Gemini 등 주요 모델을 지원하며 Codex, Gemini CLI, Claude Code 등 개발 도구에서 통합 설정해 사용하기 좋습니다.",
+    "description": "A2Z-ProxyManager 공식 API 허브로, 안정적이고 개방적이며 가성비 높은 대형 모델 API 서비스를 제공합니다. Claude, OpenAI, Gemini 등 주요 모델을 지원하며 Codex, Gemini CLI, Claude Code 등 개발 도구에서 통합 설정해 사용하기 좋습니다.",
     "viewNow": "지금 보기",
     "usage": {
       "remainingAmount": "잔액",

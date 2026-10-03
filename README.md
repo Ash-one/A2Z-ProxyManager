@@ -84,7 +84,7 @@
 | | |
 | :---: | :---: |
 | ![Dashboard - Global Quota Monitoring & One-click Switch](docs/images/dashboard-light.png) <br> Dashboard | ![Account List - High-density Quota Display & Smart 403 Labeling](docs/images/accounts-light.png) <br> Account List |
-| ![About Page - About Antigravity Tools](docs/images/about-dark.png) <br> About Page | ![API Proxy - Service Control](docs/images/v3/proxy-settings.png) <br> API Proxy |
+| ![About Page](docs/images/about-dark.png) <br> About Page | ![API Proxy - Service Control](docs/images/v3/proxy-settings.png) <br> API Proxy |
 | ![Settings - General Config](docs/images/settings-dark.png) <br> Settings | |
 
 ### 💡 Usage Examples
@@ -141,7 +141,7 @@ If you have [Homebrew](https://brew.sh/) installed, you can also install via:
 brew tap Ash-one/a2z-proxymanager https://github.com/Ash-one/A2Z-ProxyManager
 
 # 2. Install the app
-brew install --cask antigravity-tools
+brew install --cask a2z-proxymanager
 ```
 
 #### Arch Linux
@@ -155,7 +155,7 @@ curl -sSL https://raw.githubusercontent.com/Ash-one/A2Z-ProxyManager/main/deploy
 **Option 2: via Homebrew** (If you have [Linuxbrew](https://sh.brew.sh/) installed)
 ```bash
 brew tap Ash-one/a2z-proxymanager https://github.com/Ash-one/A2Z-ProxyManager
-brew install --cask antigravity-tools
+brew install --cask a2z-proxymanager
 ```
 
 #### Other Linux Distributions
@@ -232,7 +232,7 @@ docker compose up -d
 #### macOS says "App is damaged"?
 Due to macOS security gatekeeper, non-App Store apps might show this. Run this in Terminal to fix:
 ```bash
-sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Tools.app"
+sudo xattr -rd com.apple.quarantine "/Applications/A2Z-ProxyManager.app"
 ```
 
 #### Linux window is black or empty?

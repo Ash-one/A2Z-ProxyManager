@@ -62,7 +62,7 @@
     "selected": "Selected",
     "claude_series": "Claude Series",
     "maximize": "Maximize",
-    "app_name": "Antigravity Tools"
+    "app_name": "A2Z-ProxyManager"
   },
   "nav": {
     "dashboard": "Papan Pemuka",
@@ -434,7 +434,7 @@
       "auto_launch": "Lancar pada Permulaan",
       "auto_launch_enabled": "Diaktifkan",
       "auto_launch_disabled": "Dinyahaktifkan",
-      "auto_launch_desc": "Lancarkan Antigravity Tools secara automatik apabila sistem bermula",
+      "auto_launch_desc": "Lancarkan A2Z-ProxyManager secara automatik apabila sistem bermula",
       "quiet_autostart": "Permulaan senyap (kekal di dulang)",
       "quiet_autostart_desc": "Apabila dilancarkan semasa sistem bermula, tetingkap utama kekal tersembunyi. Jika mod ringan juga dihidupkan, WebView dilepaskan serta-merta. Membuka aplikasi sendiri tetap memaparkan tetingkap. Jika dulang sistem tiada, tetingkap dipaparkan.",
       "quiet_autostart_enabled": "Permulaan senyap dihidupkan",
@@ -1610,7 +1610,7 @@
   "apiKeyFun": {
     "title": "APIKEY.FUN Hub",
     "eyebrow": "Hub",
-    "description": "The official Antigravity Tools API Hub, providing stable, open, and cost-effective large model API services. Supports mainstream models like Claude, OpenAI, and Gemini. Ideal for unified configuration in Codex, Gemini CLI, Claude Code, and other development tools.",
+    "description": "The official A2Z-ProxyManager API Hub, providing stable, open, and cost-effective large model API services. Supports mainstream models like Claude, OpenAI, and Gemini. Ideal for unified configuration in Codex, Gemini CLI, Claude Code, and other development tools.",
     "viewNow": "View Now",
     "usage": {
       "remainingAmount": "Remaining",

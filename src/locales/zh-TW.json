@@ -63,7 +63,7 @@
     "selected": "已選擇",
     "claude_series": "Claude 系列",
     "maximize": "最大化",
-    "app_name": "Antigravity Tools"
+    "app_name": "A2Z-ProxyManager"
   },
   "nav": {
     "dashboard": "儀表板",
@@ -436,7 +436,7 @@
       "auto_launch": "開機自動啟動",
       "auto_launch_enabled": "啟用",
       "auto_launch_disabled": "停用",
-      "auto_launch_desc": "系統啟動時自動執行 Antigravity Tools",
+      "auto_launch_desc": "系統啟動時自動執行 A2Z-ProxyManager",
       "quiet_autostart": "免打擾啟動（留在系統匣）",
       "quiet_autostart_desc": "開機自啟時不彈出主視窗。同時開啟輕量模式時，會直接釋放前端行程。手動開啟軟體仍會顯示主視窗；系統沒有系統匣時會改為顯示視窗。",
       "quiet_autostart_enabled": "已開啟免打擾啟動",
@@ -1872,7 +1872,7 @@
   "apiKeyFun": {
     "title": "APIKEY.FUN 中轉站",
     "eyebrow": "中轉站",
-    "description": "Antigravity Tools 官方合作中轉站，提供穩定、開放、高性價比的大模型 API 服務。支援 Claude、OpenAI、Gemini 等主流模型。透過專屬連結註冊，可享最高充值永久 95 折優惠。",
+    "description": "A2Z-ProxyManager 官方合作中轉站，提供穩定、開放、高性價比的大模型 API 服務。支援 Claude、OpenAI、Gemini 等主流模型。透過專屬連結註冊，可享最高充值永久 95 折優惠。",
     "viewNow": "立即查看",
     "usage": {
       "remainingAmount": "剩餘額度",

@@ -62,7 +62,7 @@
     "selected": "已选择",
     "claude_series": "Claude 系列",
     "maximize": "最大化",
-    "app_name": "Antigravity Tools"
+    "app_name": "A2Z-ProxyManager"
   },
   "nav": {
     "dashboard": "仪表盘",
@@ -455,7 +455,7 @@
       "auto_launch": "开机自动启动",
       "auto_launch_enabled": "启用",
       "auto_launch_disabled": "禁用",
-      "auto_launch_desc": "系统启动时自动运行 Antigravity Tools",
+      "auto_launch_desc": "系统启动时自动运行 A2Z-ProxyManager",
       "quiet_autostart": "免打扰启动（留在托盘）",
       "quiet_autostart_desc": "开机自启时不弹出主窗口。同时开启轻量模式时，会直接释放前端进程。手动打开软件仍会显示主窗口；系统没有托盘时会改为显示窗口。",
       "quiet_autostart_enabled": "已开启免打扰启动",
@@ -1864,7 +1864,7 @@
   "apiKeyFun": {
     "title": "APIKEY.FUN 中转站",
     "eyebrow": "中转站",
-    "description": "Antigravity Tools 官方合作中转站，为用户提供稳定、开放、高性价比的大模型 API 接入服务。支持 Claude、OpenAI、Gemini 等主流模型，适合在 Codex、Gemini CLI、Claude Code 及其他开发工具中统一配置使用。通过 Antigravity Tools 专属链接注册，可享受最高充值永久 95 折优惠。",
+    "description": "A2Z-ProxyManager 官方合作中转站，为用户提供稳定、开放、高性价比的大模型 API 接入服务。支持 Claude、OpenAI、Gemini 等主流模型，适合在 Codex、Gemini CLI、Claude Code 及其他开发工具中统一配置使用。通过 A2Z-ProxyManager 专属链接注册，可享受最高充值永久 95 折优惠。",
     "viewNow": "立即查看",
     "usage": {
       "remainingAmount": "剩余额度",

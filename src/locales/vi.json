@@ -63,7 +63,7 @@
     "selected": "Selected",
     "claude_series": "Claude Series",
     "maximize": "Maximize",
-    "app_name": "Antigravity Tools"
+    "app_name": "A2Z-ProxyManager"
   },
   "nav": {
     "dashboard": "Tổng quan",
@@ -436,7 +436,7 @@
       "auto_launch": "Mở khi đăng nhập",
       "auto_launch_enabled": "Đã bật",
       "auto_launch_disabled": "Đã tắt",
-      "auto_launch_desc": "Tự động mở Antigravity Tools khi bạn đăng nhập vào máy",
+      "auto_launch_desc": "Tự động mở A2Z-ProxyManager khi bạn đăng nhập vào máy",
       "quiet_autostart": "Khởi động im lặng (ở trong khay)",
       "quiet_autostart_desc": "Khi được mở cùng hệ thống, cửa sổ chính được giữ ẩn. Nếu chế độ nhẹ cũng bật, WebView được giải phóng ngay. Tự mở ứng dụng vẫn hiện cửa sổ. Nếu không có khay hệ thống, cửa sổ sẽ được hiện.",
       "quiet_autostart_enabled": "Đã bật khởi động im lặng",
@@ -1776,7 +1776,7 @@
   "apiKeyFun": {
     "title": "APIKEY.FUN Hub",
     "eyebrow": "Hub",
-    "description": "The official Antigravity Tools API Hub, providing stable, open, and cost-effective large model API services. Supports mainstream models like Claude, OpenAI, and Gemini. Ideal for unified configuration in Codex, Gemini CLI, Claude Code, and other development tools.",
+    "description": "The official A2Z-ProxyManager API Hub, providing stable, open, and cost-effective large model API services. Supports mainstream models like Claude, OpenAI, and Gemini. Ideal for unified configuration in Codex, Gemini CLI, Claude Code, and other development tools.",
     "viewNow": "View Now",
     "usage": {
       "remainingAmount": "Remaining",

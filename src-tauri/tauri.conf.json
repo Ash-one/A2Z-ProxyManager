@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Antigravity Tools",
+  "productName": "A2Z-ProxyManager",
   "version": "4.8.9",
   "identifier": "com.lbjlaq.antigravity-tools",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "Antigravity Tools",
+        "title": "A2Z-ProxyManager",
         "width": 1024,
         "height": 700,
         "titleBarStyle": "Overlay",

@@ -64,7 +64,7 @@
     "selected": "Selected",
     "claude_series": "Claude Series",
     "maximize": "Maximize",
-    "app_name": "Antigravity Tools"
+    "app_name": "A2Z-ProxyManager"
   },
   "nav": {
     "dashboard": "Дашборд",
@@ -436,7 +436,7 @@
       "auto_launch": "Запуск при старте системы",
       "auto_launch_enabled": "Включено",
       "auto_launch_disabled": "Отключено",
-      "auto_launch_desc": "Автоматически запускать Antigravity Tools при старте системы",
+      "auto_launch_desc": "Автоматически запускать A2Z-ProxyManager при старте системы",
       "quiet_autostart": "Тихий запуск (оставаться в трее)",
       "quiet_autostart_desc": "При запуске вместе с системой главное окно не показывается. Если также включён лёгкий режим, WebView сразу выгружается. Обычный запуск по-прежнему показывает окно. Если трей недоступен, окно будет показано.",
       "quiet_autostart_enabled": "Тихий запуск включён",
@@ -1810,7 +1810,7 @@
   "apiKeyFun": {
     "title": "Хаб APIKEY.FUN",
     "eyebrow": "Хаб",
-    "description": "Официальный партнерский хаб Antigravity Tools для стабильного и выгодного доступа к API больших моделей (Claude, OpenAI, Gemini). Подходит для конфигурации в Codex, Claude Code и других CLI.",
+    "description": "Официальный партнерский хаб A2Z-ProxyManager для стабильного и выгодного доступа к API больших моделей (Claude, OpenAI, Gemini). Подходит для конфигурации в Codex, Claude Code и других CLI.",
     "viewNow": "Перейти",
     "usage": {
       "remainingAmount": "Остаток",

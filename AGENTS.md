@@ -6,7 +6,7 @@
 
 ## 1. 架构总览（Architecture Overview）
 
-本项目是一个高性能 AI 协议网关与桌面管理工具（A2Z-ProxyManager / Antigravity Tools），集成了两大核心引擎：
+本项目是一个高性能 AI 协议网关与桌面管理工具（A2Z-ProxyManager），集成了两大核心引擎：
 
 ```
                     ┌────────────────────────────┐
@@ -80,7 +80,7 @@
      2. 接着必须执行 `cargo build` 重新内嵌编译 Rust 二进制；
      3. 将编译好的二进制同步到 App bundle 并重启应用进程：
         ```bash
-        cp src-tauri/target/debug/antigravity-tools "src-tauri/target/debug/bundle/macos/Antigravity Tools.app/Contents/MacOS/antigravity-tools"
+        cp src-tauri/target/debug/antigravity-tools "src-tauri/target/debug/bundle/macos/A2Z-ProxyManager.app/Contents/MacOS/antigravity-tools"
         ```
 3. **Node 求解器依赖保障**：
    - `captcha_node/` 目录维护轻量 `happy-dom` 依赖，解算脚本为 `captcha_node/solver.js`；

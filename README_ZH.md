@@ -82,7 +82,7 @@
 | | |
 | :---: | :---: |
 | ![仪表盘 - 全局配额监控与一键切换](docs/images/dashboard-light.png) <br> 仪表盘 | ![账号列表 - 高密度配额展示与 403 智能标注](docs/images/accounts-light.png) <br> 账号列表 |
-| ![关于页面 - 关于 Antigravity Tools](docs/images/about-dark.png) <br> 关于页面 | ![API 反代 - 服务控制](docs/images/v3/proxy-settings.png) <br> API 反代 |
+| ![关于页面](docs/images/about-dark.png) <br> 关于页面 | ![API 反代 - 服务控制](docs/images/v3/proxy-settings.png) <br> API 反代 |
 | ![系统设置 - 通用配置](docs/images/settings-dark.png) <br> 系统设置 | |
 
 ### 💡 使用案例 (Usage Examples)
@@ -139,7 +139,7 @@ irm https://raw.githubusercontent.com/Ash-one/A2Z-ProxyManager/main/install.ps1 
 brew tap Ash-one/a2z-proxymanager https://github.com/Ash-one/A2Z-ProxyManager
 
 # 2. 安装应用
-brew install --cask antigravity-tools
+brew install --cask a2z-proxymanager
 ```
 
 #### Arch Linux
@@ -153,7 +153,7 @@ curl -sSL https://raw.githubusercontent.com/Ash-one/A2Z-ProxyManager/main/deploy
 **方式 2：通过 Homebrew** (如果您已安装 [Linuxbrew](https://sh.brew.sh/))
 ```bash
 brew tap Ash-one/a2z-proxymanager https://github.com/Ash-one/A2Z-ProxyManager
-brew install --cask antigravity-tools
+brew install --cask a2z-proxymanager
 ```
 
 #### 其他 Linux 发行版
@@ -237,10 +237,10 @@ Copyright © 2026 [GuanXuzeng (Ash-one)](https://github.com/Ash-one) · 基于 [
 1.  **命令行修复** (推荐):
     打开终端，执行以下命令：
     ```bash
-    sudo xattr -rd com.apple.quarantine "/Applications/Antigravity Tools.app"
+    sudo xattr -rd com.apple.quarantine "/Applications/A2Z-ProxyManager.app"
     ```
 2.  **Homebrew 安装优势**:
-    现在通过 Homebrew (`brew install --cask antigravity-tools`) 安装时，系统会在安装末尾自动执行清理属性的操作，**真正实现开箱即用**。
+    现在通过 Homebrew (`brew install --cask a2z-proxymanager`) 安装时，系统会在安装末尾自动执行清理属性的操作，**真正实现开箱即用**。
 
 #### Linux 窗口全黑 / 透明框？
 在 niri、Hyprland、Sway 等合成器上，旧版本会因为会话里总有 `DISPLAY` 而强制走 X11，WebKit 主界面可能全黑。请更新到包含该修复的版本；或临时：
