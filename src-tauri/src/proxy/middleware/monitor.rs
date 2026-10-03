@@ -1262,6 +1262,18 @@ pub async fn monitor_middleware(
                                     }
                                 }
                             }
+                            Some("message_start") => {
+                                // Anthropic 原生流的上游权威 input token 位于 message.usage
+                                // （z.ai 等原生透传通道的唯一 input 来源；message_delta 仅回传 output）
+                                if let Some(usage) =
+                                    json.get("message").and_then(|m| m.get("usage"))
+                                {
+                                    log.input_tokens =
+                                        extract_input_tokens(usage).or(log.input_tokens);
+                                    log.cached_tokens =
+                                        log.cached_tokens.or_else(|| extract_cached_tokens(usage));
+                                }
+                            }
                             Some("message_delta") => {
                                 if let Some(delta) = json.get("delta") {
                                     if let Some(usage) = delta.get("usage") {
@@ -1335,15 +1347,16 @@ pub async fn monitor_middleware(
                             }
                         }
 
-                        // Token usage extraction
+                        // Token usage extraction（非破坏式：后到的 usage 片段缺字段时保留已有值，
+                        // 例如 Anthropic message_delta 只带 output，不回抹 message_start 的 input）
                         if let Some(usage) = json
                             .get("usage")
                             .or(json.get("usageMetadata"))
                             .or(json.get("response").and_then(|r| r.get("usage")))
                             .or(json.get("response").and_then(|r| r.get("usageMetadata")))
                         {
-                            log.input_tokens = extract_input_tokens(usage);
-                            log.output_tokens = extract_output_tokens(usage);
+                            log.input_tokens = extract_input_tokens(usage).or(log.input_tokens);
+                            log.output_tokens = extract_output_tokens(usage).or(log.output_tokens);
                             cached_tokens = cached_tokens.or_else(|| extract_cached_tokens(usage));
                             log.cached_tokens = log.cached_tokens.or(cached_tokens);
                             reasoning_tokens =

@@ -914,6 +914,10 @@ impl SseBridgeState {
                     }
                 }
                 if let Some(u) = data.get("usage") {
+                    // z.ai 上游在 message_delta.usage 回传权威 input/output（message_start 为 0 占位）
+                    if let Some(i) = u.get("input_tokens").and_then(Value::as_u64) {
+                        self.input_tokens = i;
+                    }
                     if let Some(o) = u.get("output_tokens").and_then(Value::as_u64) {
                         self.output_tokens = o;
                     }
@@ -952,6 +956,25 @@ impl SseBridgeState {
                         json!({"type": "response.completed", "sequence_number": self.next_seq(), "response": completed}),
                     ));
                 } else {
+                    // OpenAI chat 形态收尾补发 usage 块（空 choices + 顶层 usage，为
+                    // 监控中间件的 token 统计提供上游权威数值，避免退化为请求体估算）
+                    if self.input_tokens > 0 || self.output_tokens > 0 {
+                        out.push((
+                            "message".to_string(),
+                            json!({
+                                "id": format!("chatcmpl-{}", self.response_id),
+                                "object": "chat.completion.chunk",
+                                "created": chrono::Utc::now().timestamp(),
+                                "model": self.model,
+                                "choices": [],
+                                "usage": {
+                                    "prompt_tokens": self.input_tokens,
+                                    "completion_tokens": self.output_tokens,
+                                    "total_tokens": self.input_tokens + self.output_tokens,
+                                },
+                            }),
+                        ));
+                    }
                     out.push(("done".to_string(), json!("[DONE]")));
                 }
             }
@@ -1590,20 +1613,42 @@ mod tests {
         assert_eq!(delta_events.len(), 1);
         assert_eq!(delta_events[0].1["choices"][0]["delta"]["content"], "Hello");
 
-        // 4. message_delta (stop_reason: end_turn)
+        // 4. message_delta (stop_reason: end_turn, 权威 usage 刷新 input)
         let finish_events = state.ingest(
             "message_delta",
             &json!({
                 "type": "message_delta",
                 "delta": {"stop_reason": "end_turn"},
-                "usage": {"output_tokens": 5}
+                "usage": {"input_tokens": 12, "output_tokens": 5}
             }),
             false,
         );
         assert_eq!(finish_events.len(), 1);
         assert_eq!(finish_events[0].1["choices"][0]["finish_reason"], "stop");
 
-        // 5. message_stop
+        // 5. message_stop -> 收尾 usage 块（12 in + 5 out）+ [DONE]
+        let stop_events = state.ingest("message_stop", &json!({"type": "message_stop"}), false);
+        assert_eq!(stop_events.len(), 2);
+        assert!(stop_events[0].1["choices"].as_array().unwrap().is_empty());
+        assert_eq!(stop_events[0].1["usage"]["prompt_tokens"], 12);
+        assert_eq!(stop_events[0].1["usage"]["completion_tokens"], 5);
+        assert_eq!(stop_events[0].1["usage"]["total_tokens"], 17);
+        assert_eq!(stop_events[1].0, "done");
+        assert_eq!(stop_events[1].1, json!("[DONE]"));
+    }
+
+    #[test]
+    fn test_sse_bridge_chat_streaming_without_usage_skips_usage_chunk() {
+        let mut state = SseBridgeState::new();
+        // 未收到任何上游 usage 时不得虚构 0 值 usage 块
+        state.ingest(
+            "message_start",
+            &json!({
+                "type": "message_start",
+                "message": {"id": "msg_x", "model": "glm-5.3-flash", "usage": {}}
+            }),
+            false,
+        );
         let stop_events = state.ingest("message_stop", &json!({"type": "message_stop"}), false);
         assert_eq!(stop_events.len(), 1);
         assert_eq!(stop_events[0].0, "done");
