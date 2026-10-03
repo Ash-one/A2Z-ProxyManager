@@ -1,16 +1,16 @@
-# Antigravity Tools 🚀
-> Professional Account Management & Protocol Proxy System for AI Services (v4.8.9)
+# A2Z-ProxyManager 🚀
+> Dual-Engine AI Account Management & Protocol Proxy — Antigravity (Google) + Z.AI / ZCode (GLM) (v4.8.9)
 
 <div align="center">
-  <img src="public/icon.png" width="100" height="100" alt="Antigravity Tools Logo">
-  <h3>Antigravity Tools</h3>
+  <img src="public/icon.png" width="100" height="100" alt="A2Z-ProxyManager Logo">
+  <h3>A2Z-ProxyManager</h3>
   <p>Multi-platform automation & multi-account matrix dispatch console</p>
 
   <p>
-    <a href="https://github.com/lbjlaq/Antigravity-Manager/releases">
-      <img src="https://img.shields.io/github/v/release/lbjlaq/Antigravity-Manager?color=blue&style=flat-square" alt="GitHub release">
+    <a href="https://github.com/Ash-one/A2Z-ProxyManager/releases">
+      <img src="https://img.shields.io/github/v/release/Ash-one/A2Z-ProxyManager?color=blue&style=flat-square" alt="GitHub release">
     </a>
-    <a href="https://github.com/lbjlaq/Antigravity-Manager">
+    <a href="https://github.com/Ash-one/A2Z-ProxyManager">
       <img src="https://img.shields.io/badge/Version-4.8.9-blue?style=flat-square" alt="Version">
     </a>
     <img src="https://img.shields.io/badge/Tauri-v2-orange?style=flat-square" alt="Tauri">
@@ -35,38 +35,12 @@
 
 ---
 
-**Antigravity Tools** is an all-in-one desktop application designed for developers and AI enthusiasts. It perfectly combines multi-account management, protocol conversion, and smart request scheduling to provide you with a stable, high-speed, and low-cost **Local AI Relay Station**.
+**A2Z-ProxyManager** is an all-in-one desktop application designed for developers and AI enthusiasts. It combines multi-account management, protocol conversion, and smart request scheduling into a stable, high-speed, and low-cost **Local AI Relay Station**, powered by a dual-engine architecture:
 
-By leveraging this app, you can transform common Web Sessions (Google/Anthropic) into standardized API interfaces, completely eliminating the protocol gap between different providers.
+*   **Antigravity Engine (Google Gemini)**: turns common Web Sessions (Google/Anthropic) into standardized API interfaces, completely eliminating the protocol gap between different providers.
+*   **Z.AI / ZCode Engine (GLM, fork-exclusive)**: serves GLM models from z.ai API keys and ZCode Coding Plan subscription accounts through the same gateway.
 
-## 💖 Sponsors
-
-| Sponsor | Description |
-| :---: | :--- |
-| <img src="docs/images/packycode_logo.png" width="200" alt="PackyCode Logo"> | Thanks to **PackyCode** for sponsoring this project! PackyCode is a reliable and efficient API relay service provider, offering relays for various services such as Claude Code, Codex, and Gemini. PackyCode provides a special offer for users of this project: Register using [this link](https://www.packyapi.com/register?aff=Ctrler) and enter the **"Ctrler"** coupon code when topping up to enjoy a **10% discount**. |
-| <img src="docs/images/APIKEYFUN.png" width="200" alt="APIKEYFUN Logo"> | Thanks to **APIKEY.FUN** for sponsoring this project! APIKEY.FUN is a professional enterprise-grade AI relay station, dedicated to providing stable, efficient, and low-cost AI model API access services for enterprise and individual developers. The platform supports mainstream popular models such as Claude, OpenAI, and Gemini, with prices as low as 7% of the official original price. Register through [this exclusive link](https://apikey.fan/register?aff=AntManager) for this project to enjoy an exclusive offer of up to **permanent 5% off on top-ups**. |
-| <img src="docs/images/claudeapilogo.png" width="200" alt="Claude API Logo"> | Thanks to **Claude API** for supporting this project! claudeapi.com is a **Claude API** relay station built on **official and AWS channels**, focused exclusively on Claude, delivering high stability and low latency with full support for Claude Code. Exclusive offer: register via this [exclusive link](https://console.claudeapi.com/register?source=antigravity) to get **free trial credits — zero setup, get started instantly**; enjoy an extra **5% off** when you top up（Contact Support). |
-| <img src="docs/images/AICodeMirror.jpg" width="200" alt="AICodeMirror Logo"> | Thanks to **AICodeMirror** for sponsoring this project! AICodeMirror provides official high-stability relay services for Claude Code / Codex / Gemini CLI, supporting enterprise-grade concurrency, fast invoicing, and 24/7 dedicated technical support. Claude Code / Codex / Gemini official channels at 38% / 2% / 9% of original price, with extra discounts on top-ups! AICodeMirror offers special benefits for Antigravity-Manager users: register via [this link](https://aicodemirror.ai/register?invitecode=MV5XUM) to enjoy 20% off your first top-up, and enterprise customers can get up to 25% off! |
-
-
-
-
-
-### ☕ Support
-
-If you find this project helpful, feel free to buy me a coffee!
-
-<a href="https://www.buymeacoffee.com/Ctrler" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-green.png" alt="Buy Me A Coffee" style="height: 60px !important; width: 217px !important;"></a>
-
-| Alipay | WeChat Pay | Buy Me a Coffee |
-| :---: | :---: | :---: |
-| ![Alipay](./docs/images/donate_alipay.png) | ![WeChat](./docs/images/donate_wechat.png) | ![Coffee](./docs/images/donate_coffee.png) |
-
-## 🚀 Recommended Projects
-
-If you like this project, you might also be interested in:
-
-*   **[Antigravity-Tools-LS](https://github.com/lbjlaq/Antigravity-Tools-LS)**: A Language Server Protocol (LSP) designed for AI protocols, providing you with smarter code completion, diagnostics, and protocol debugging experiences.
+> This project is a fork of [Antigravity-Manager](https://github.com/lbjlaq/Antigravity-Manager) (a.k.a. Antigravity Tools) by @lbjlaq. All credit for the original Antigravity engine belongs to the upstream team and its contributors; this fork extends it with the Z.AI / ZCode engine and publishes its own releases under this repository.
 
 ## 🌟 Detailed Feature Matrix
 
@@ -97,6 +71,14 @@ If you like this project, you might also be interested in:
 *   **Advanced Image Control**: Supports precise control over image generation tasks via OpenAI `size` (e.g., `1024x1024`, `16:9`) parameters or model name suffixes.
 *   **Enhanced Payload Support**: The backend supports payloads up to **100MB** (configurable), more than enough for 4K HD image recognition and processing.
 
+### 6. 🤖 Z.AI / ZCode Engine — GLM & Coding Plan (Fork-Exclusive)
+*   **ZCode Coding Plan Accounts (OAuth JWT Pool)**: Add your ZCode (z.ai) Coding Plan / Start Plan subscription accounts via OAuth. Tokens are managed as a rotating pool with automatic refresh, quota query, and a dedicated **ZCode Accounts management page** with per-account channel attribution in the traffic monitor.
+*   **z.ai API Key Pool**: Manage plain z.ai API keys alongside subscription accounts, with per-key usage statistics counted into the token statistics.
+*   **Headless Captcha Solver**: Built-in `captcha_node` solver (happy-dom based) keeps a dual-slot pre-warmed captcha buffer per account (90s TTL) — upstream `3007` rejections trigger precise single-token invalidation and sub-second self-healing, entirely without a browser window or frontend lifecycle.
+*   **3012 / 405 WAF Compliance Layer**: Automatically fronts requests with the ZCode official agent system-identity block, dynamic current-model block, `metadata.user_id` parsed from the JWT payload, and a trailing `cache_control: ephemeral` marker on the last message.
+*   **Deterministic GLM Routing**: Requests for `glm-*` / `zai:*` / `zcode:*` models are deterministically routed to the Z.AI engine (never into the Google account pool), with wildcard-aware case-insensitive model canonicalization.
+*   **Multi-Protocol Inbound**: GLM models are reachable from every inbound protocol — Anthropic `/v1/messages`, OpenAI `/v1/chat/completions`, and Gemini.
+
 ##  GUI Overview
 
 | | |
@@ -116,13 +98,16 @@ If you like this project, you might also be interested in:
 
 ```mermaid
 graph TD
-    Client([External Apps: Claude Code/NextChat]) -->|OpenAI/Anthropic| Gateway[Antigravity Axum Server]
+    Client([External Apps: Claude Code/NextChat]) -->|OpenAI/Anthropic/Gemini| Gateway[A2Z Axum Server]
     Gateway --> Middleware[Middleware: Auth/Rate Limit/Logs]
     Middleware --> Router[Model Router: ID Mapping]
-    Router --> Dispatcher[Dispatcher: Rotation/Weights]
+    Router -->|Antigravity Models| Dispatcher[Dispatcher: Rotation/Weights]
+    Router -->|glm-* / zai:* Models| ZEngine[Z.AI Engine: Key Pool + Plan JWT]
     Dispatcher --> Mapper[Request Mapper]
     Mapper --> Upstream[Upstream: Google/Anthropic API]
+    ZEngine --> ZGateway[Zcode Plan Gateway: Captcha Buffer + 3012 WAF]
     Upstream --> ResponseMapper[Response Mapper]
+    ZGateway --> ResponseMapper
     ResponseMapper --> Client
 ```
 
@@ -136,24 +121,24 @@ Automatically detects your OS, architecture, and package manager — one command
 
 **Linux / macOS:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/lbjlaq/Antigravity-Manager/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Ash-one/A2Z-ProxyManager/main/install.sh | bash
 ```
 
 **Windows (PowerShell):**
 ```powershell
-irm https://raw.githubusercontent.com/lbjlaq/Antigravity-Manager/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Ash-one/A2Z-ProxyManager/main/install.ps1 | iex
 ```
 
 > **Supported formats**: Linux (`.deb` / `.rpm` / `.AppImage`) | macOS (`.dmg`) | Windows (NSIS `.exe`)
 >
-> **Advanced usage**: Install a specific version `curl -fsSL https://raw.githubusercontent.com/lbjlaq/Antigravity-Manager/main/install.sh | bash -s -- --version 4.6.8`, dry-run mode `curl -fsSL https://raw.githubusercontent.com/lbjlaq/Antigravity-Manager/main/install.sh | bash -s -- --dry-run`
+> **Advanced usage**: Install a specific version `curl -fsSL https://raw.githubusercontent.com/Ash-one/A2Z-ProxyManager/main/install.sh | bash -s -- --version 4.6.8`, dry-run mode `curl -fsSL https://raw.githubusercontent.com/Ash-one/A2Z-ProxyManager/main/install.sh | bash -s -- --dry-run`
 
 #### macOS - Homebrew
 If you have [Homebrew](https://brew.sh/) installed, you can also install via:
 
 ```bash
 # 1. Tap the repository
-brew tap lbjlaq/antigravity-manager https://github.com/lbjlaq/Antigravity-Manager
+brew tap Ash-one/a2z-proxymanager https://github.com/Ash-one/A2Z-ProxyManager
 
 # 2. Install the app
 brew install --cask antigravity-tools
@@ -164,12 +149,12 @@ You can choose to install via the one-click script or Homebrew:
 
 **Option 1: One-click script (Recommended)**
 ```bash
-curl -sSL https://raw.githubusercontent.com/lbjlaq/Antigravity-Manager/main/deploy/arch/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/Ash-one/A2Z-ProxyManager/main/deploy/arch/install.sh | bash
 ```
 
 **Option 2: via Homebrew** (If you have [Linuxbrew](https://sh.brew.sh/) installed)
 ```bash
-brew tap lbjlaq/antigravity-manager https://github.com/lbjlaq/Antigravity-Manager
+brew tap Ash-one/a2z-proxymanager https://github.com/Ash-one/A2Z-ProxyManager
 brew install --cask antigravity-tools
 ```
 
@@ -177,47 +162,34 @@ brew install --cask antigravity-tools
 The AppImage will be automatically symlinked to your binary path with executable permissions.
 
 ### Option B: Manual Download
-Download from [GitHub Releases](https://github.com/lbjlaq/Antigravity-Manager/releases):
-*   **macOS**: `.dmg` (Universal, Apple Silicon & Intel)
-*   **Windows**: `.msi` or portable `.zip`
-*   **Linux**: `.deb` or `AppImage`
+Download from [GitHub Releases](https://github.com/Ash-one/A2Z-ProxyManager/releases):
+*   **macOS**: `.dmg` (Apple Silicon & Intel, separate builds)
+*   **Windows**: `.exe` (NSIS) or `.msi`
+*   **Linux**: `.deb` / `.rpm` or `AppImage`
 
 ### Option C: Docker Deployment (Recommended for NAS/Servers)
-If you prefer running in a containerized environment, we provide a native Docker image. This image supports the v4.0.3 Native Headless architecture, automatically hosts frontend static resources, and allows for direct browser-based management.
+If you prefer running in a containerized environment, you can build a native Docker image from source. The image supports the native Headless architecture, automatically hosts frontend static resources, and allows for direct browser-based management.
 
-#### Option 1: Direct Run (Recommended)
+> **Note**: This fork does not publish prebuilt Docker images to Docker Hub. Prebuilt `lbjlaq/antigravity-manager` images on Docker Hub run the **upstream** code, not this fork's Z.AI / ZCode engine — build locally instead.
+
+#### Option 1: Build and Run
 - **API_KEY**: Required. Used for AI request authentication.
 - **WEB_PASSWORD**: Optional. Used for Web UI login. Defaults to API_KEY if NOT set.
 
 ```bash
-docker run -d --name antigravity-manager \
+# Build the image from the repository root
+docker build -t a2z-proxymanager:latest -f docker/Dockerfile .
+
+docker run -d --name a2z-proxymanager \
   -p 8045:8045 \
   -e API_KEY=sk-your-api-key \
   -e WEB_PASSWORD=your-login-password \
   -e ABV_MAX_BODY_SIZE=104857600 \
   -v ~/.antigravity_tools:/root/.antigravity_tools \
-  lbjlaq/antigravity-manager:latest
+  a2z-proxymanager:latest
 
-# Forgot keys? Run `docker logs antigravity-manager` or `grep -E '"api_key"|"admin_password"' ~/.antigravity_tools/gui_config.json`
+# Forgot keys? Run `docker logs a2z-proxymanager` or `grep -E '"api_key"|"admin_password"' ~/.antigravity_tools/gui_config.json`
 ```
-
-> [!TIP]
-> **🧪 Pulling Beta / Preview Images**:
-> To test the latest Beta pre-release features, specify the corresponding Beta version tag (pre-releases are published independently and will never overwrite the `latest` stable tag):
-> ```bash
-> # Pull a specific Beta pre-release version (check Docker Hub for all tags)
-> docker pull lbjlaq/antigravity-manager:v4.8.2-beta.0
-> 
-> # Run Beta container
-> docker run -d --name antigravity-manager-beta \
->   -p 8045:8045 \
->   -e API_KEY=sk-your-api-key \
->   -e WEB_PASSWORD=your-login-password \
->   -e ABV_MAX_BODY_SIZE=104857600 \
->   -v ~/.antigravity_tools:/root/.antigravity_tools \
->   lbjlaq/antigravity-manager:v4.8.2-beta.0
-> ```
-> View all published Beta tags on [Docker Hub Tags](https://hub.docker.com/r/lbjlaq/antigravity-manager/tags). If you wish to run the unreleased bleeding-edge `beta` branch directly, build locally: `docker build -t lbjlaq/antigravity-manager:beta -f docker/Dockerfile .`.
 
 #### 🔐 Authentication Scenarios
 *   **Scenario A: Only `API_KEY` is set**
@@ -309,6 +281,23 @@ export ANTHROPIC_API_KEY="sk-antigravity"
 export ANTHROPIC_BASE_URL="http://127.0.0.1:8045"
 claude
 ```
+
+### How to use GLM models (Z.AI / ZCode)? (Fork-Exclusive)
+1. Go to the **ZCode Accounts** page → add your ZCode Coding Plan account via OAuth (or import z.ai API keys in the **Key Pool** editor).
+2. Start the proxy in the **API Proxy** tab. Requests for `glm-*` models are routed to the Z.AI engine automatically — no extra configuration needed.
+3. Golden-path verification (Anthropic protocol):
+```bash
+curl -i -X POST http://127.0.0.1:8045/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: test" \
+  -H "anthropic-version: 2023-06-01" \
+  -d '{
+    "model": "glm-5.3-flash",
+    "max_tokens": 100,
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+> The same request works with `stream: true` for SSE streaming, and through the OpenAI protocol via `http://127.0.0.1:8045/v1/chat/completions`.
 
 ### How to use with OpenCode?
 1. Go to **API Proxy** → **External Providers** → click the **OpenCode Sync** card.
@@ -483,7 +472,7 @@ In clients that support OpenAI protocol (e.g., Cherry Studio), you can configure
 
 ## 📝 Changelog
 
-> Latest version **v4.8.9** (2026-10-01): Penetrated underlying hyper protocol stack to inject periodic HTTP/2 PING frames (`keep_alive_interval: 3s`, `keep_alive_timeout: 10s`, `keep_alive_while_idle: true`), unified `base_client_builder` across default and proxy pool clients, and tightened TCP keepalive to 3s to permanently prevent L7 proxy idle truncation and stream drops during deep-thinking or long code generation (Fixes #2195, #1796, #2013, thanks to @EricZhou05).
+> Latest version **v4.8.9** (2026-10-03): This fork is based on upstream v4.8.9 and adds the Z.AI / ZCode engine — ZCode Coding Plan subscription accounts (OAuth JWT pool) and z.ai API key pools, a headless Node captcha solver with dual-slot pre-warmed buffer pools, 3012/405 WAF-compliant request shaping, deterministic `glm-*` routing across all inbound protocols, a dedicated ZCode accounts management page, and update endpoints repointed at this fork's releases.
 
 👉 **[View Full Changelog → CHANGELOG_EN.md](CHANGELOG_EN.md)**
 
@@ -546,5 +535,5 @@ This project has referenced or learned from the ideas or code of the following e
 
 <div align="center">
   <p>If you find this tool helpful, please give it a ⭐️ on GitHub!</p>
-  <p>Copyright © 2024-2026 Antigravity Team.</p>
+  <p>Copyright © 2026 GuanXuzeng (<a href="https://github.com/Ash-one">Ash-one</a>) · Based on <a href="https://github.com/lbjlaq/Antigravity-Manager">Antigravity-Manager</a> © 2024-2026 Antigravity Team.</p>
 </div>
