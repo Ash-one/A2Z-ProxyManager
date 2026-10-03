@@ -1109,6 +1109,9 @@ pub struct NativeUpdateMetadata {
 /// 检测 GitHub releases 更新
 #[tauri::command]
 pub async fn check_for_updates() -> Result<UpdateInfo, String> {
+    if crate::modules::update_checker::UPDATE_CHECK_DISABLED {
+        return Ok(crate::modules::update_checker::disabled_update_info());
+    }
     modules::logger::log_info("收到前端触发的更新检查请求");
     crate::modules::update_checker::check_for_updates().await
 }
@@ -1120,6 +1123,9 @@ pub async fn check_native_update<R: tauri::Runtime>(
     endpoint: Option<String>,
     proxy: Option<String>,
 ) -> Result<Option<NativeUpdateMetadata>, String> {
+    if crate::modules::update_checker::UPDATE_CHECK_DISABLED {
+        return Ok(None);
+    }
     use tauri_plugin_updater::UpdaterExt;
     use url::Url;
 
@@ -1203,6 +1209,9 @@ pub async fn check_native_update<R: tauri::Runtime>(
 
 #[tauri::command]
 pub async fn should_check_updates() -> Result<bool, String> {
+    if crate::modules::update_checker::UPDATE_CHECK_DISABLED {
+        return Ok(false);
+    }
     let settings = crate::modules::update_checker::load_update_settings()?;
     Ok(crate::modules::update_checker::should_check_for_updates(
         &settings,

@@ -1556,7 +1556,7 @@ function Settings() {
                                         </div>
                                         <div>
                                             <div className="text-xs text-gray-400 uppercase tracking-wider font-semibold mb-1">{t('settings.about.author')}</div>
-                                            <div className="font-bold text-gray-900 dark:text-base-content">Ctrler</div>
+                                            <div className="font-bold text-gray-900 dark:text-base-content">GuanXuzeng</div>
                                         </div>
                                     </div>
 
@@ -1589,7 +1589,7 @@ function Settings() {
 
                                     {/* GitHub Card */}
                                     <a
-                                        href="https://github.com/lbjlaq/Antigravity-Manager"
+                                        href="https://github.com/Ash-one/A2Z-ProxyManager"
                                         target="_blank"
                                         rel="noreferrer"
                                         className="bg-white dark:bg-base-100 p-4 rounded-2xl border border-gray-100 dark:border-base-300 shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-gray-600 transition-all group flex flex-col items-center text-center gap-3 cursor-pointer"
