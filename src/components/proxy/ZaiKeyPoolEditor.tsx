@@ -39,12 +39,16 @@ interface Props {
     requestTimeout?: number;
 }
 
+// [zcode auto-claim] 每日定时领取缺省值（与后端 AutoClaimConfig 默认对齐：启用 + 本地 00:00）
+export const DEFAULT_AUTO_CLAIM = { enabled: true, time: '00:00' };
+
 export const DEFAULT_ZAI: ZaiConfig = {
     enabled: false,
     base_url: 'https://api.z.ai/api/anthropic',
     api_key: '',
     models: { opus: '', sonnet: '', haiku: '' },
     mcp: { enabled: false, web_search_enabled: false, web_reader_enabled: false, vision_enabled: false },
+    auto_claim: DEFAULT_AUTO_CLAIM,
 };
 
 const STATUS_BADGE: Record<ZaiKeyRuntimeStatus, string> = {
@@ -115,6 +119,10 @@ const StatChip = ({ icon: Icon, label, value, tone }: StatChipProps) => (
 export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, requestTimeout }: Props) => {
     const { t } = useTranslation();
     const zai = zaiProp || DEFAULT_ZAI;
+    // [zcode auto-claim] 每日定时领取（后端调度器热读取该配置；改动经 onChange 即时保存）
+    const autoClaim = zai.auto_claim ?? DEFAULT_AUTO_CLAIM;
+    const updateAutoClaim = (patch: Partial<{ enabled: boolean; time: string }>) =>
+        onChange({ auto_claim: { ...autoClaim, ...patch } });
     const [statuses, setStatuses] = useState<ZaiKeyStatusView[]>([]);
     const [loadingStatus, setLoadingStatus] = useState(false);
     const [oauthWaiting, setOauthWaiting] = useState(false);
@@ -148,7 +156,7 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
 
     const captchaInstanceRef = useRef<{ verify?: () => void } | null>(null);
     const verifyCallbackRef = useRef<((param: string) => Promise<{ captchaResult: boolean; bizResult?: boolean }>) | null>(null);
-    const lastCaptchaParamRef = useRef<{ param: string; region: string } | null>(null);
+    const lastCaptchaParamRef = useRef<{ param: string; region: string; issuedAt: number } | null>(null);
     const autoSolvedIdsRef = useRef<Set<string>>(new Set());
 
     // OAuth 轮询期间引用最新 keys，避免闭包过期
@@ -263,7 +271,7 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                                 verifyParam: param,
                                 region: cfg.region,
                             });
-                            lastCaptchaParamRef.current = { param, region: cfg.region };
+                            lastCaptchaParamRef.current = { param, region: cfg.region, issuedAt: Date.now() };
                             refreshStatus();
                             finish(true);
                             if (!silent) {
@@ -638,27 +646,45 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
     const executeClaim = async (plan: ZcodeClaimPlan) => {
         if (!claimTarget) return;
         setClaimingId(plan.plan_id);
-        try {
-            let param = lastCaptchaParamRef.current?.param;
-            let reg = lastCaptchaParamRef.current?.region || 'cn';
-            if (!param) {
-                const ok = await solveCaptcha(claimTarget);
-                if (!ok) {
-                    showToast(t('proxy.config.zai.keys.claim_need_captcha'), 'error');
-                    return;
-                }
-                param = lastCaptchaParamRef.current?.param;
-                reg = lastCaptchaParamRef.current?.region || 'cn';
+        // 验证码参数新鲜度：上游 TTL 约 2 分钟，仅复用 90s 内的缓存参数，过期强制重解
+        const CAPTCHA_FRESH_MS = 90_000;
+        const acquireCaptcha = async (
+            forceFresh: boolean,
+        ): Promise<{ param: string; region: string } | null> => {
+            const cached = lastCaptchaParamRef.current;
+            if (!forceFresh && cached && Date.now() - cached.issuedAt < CAPTCHA_FRESH_MS) {
+                return cached;
             }
-            const res = await invoke<ZcodeClaimResult>('zcode_claim', {
+            const ok = await solveCaptcha(claimTarget);
+            if (!ok) return null;
+            return lastCaptchaParamRef.current;
+        };
+        const doClaim = (captcha: { param: string; region: string }) =>
+            invoke<ZcodeClaimResult>('zcode_claim', {
                 zcodeJwt: claimTarget.key,
                 deviceProfile: claimTarget.device_profile ?? null,
                 planId: plan.plan_id,
-                verifyParam: param || '',
-                region: reg,
+                verifyParam: captcha.param,
+                region: captcha.region,
                 upstreamProxy,
                 requestTimeout,
             });
+        try {
+            let captcha = await acquireCaptcha(false);
+            if (!captcha) {
+                showToast(t('proxy.config.zai.keys.claim_need_captcha'), 'error');
+                return;
+            }
+            let res = await doClaim(captcha);
+            // 3007：验证码被拒（上游 400+3007 已由后端归一为业务码）→ 换新鲜验证码重试一次
+            if (res.code === 3007) {
+                lastCaptchaParamRef.current = null;
+                showToast(t('proxy.config.zai.keys.claim_captcha_retry'), 'info', 3000);
+                const fresh = await acquireCaptcha(true);
+                if (fresh) {
+                    res = await doClaim(fresh);
+                }
+            }
             if (res.ok) {
                 showToast(t('proxy.config.zai.keys.claim_ok', { name: plan.name || plan.plan_id }), 'success');
                 openClaimModal(claimTarget);
@@ -719,6 +745,56 @@ export const ZaiKeyPoolEditor = ({ zai: zaiProp, onChange, upstreamProxy, reques
                     >
                         <Plus size={12} />
                         {t('zcodeAccounts.add_account')}
+                    </button>
+                </div>
+            </div>
+
+            {/* [zcode auto-claim] 每日定时领取选项：开关 + 触发时点（本地 HH:MM），改动即时保存并生效 */}
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-base-200 bg-white dark:bg-base-100 px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-500 flex items-center justify-center shrink-0">
+                        <Gift size={15} />
+                    </div>
+                    <div className="min-w-0">
+                        <div className="text-xs font-semibold text-gray-800 dark:text-gray-100">
+                            {t('proxy.config.zai.auto_claim.title')}
+                        </div>
+                        <div className="text-[10px] text-gray-400 truncate">
+                            {autoClaim.enabled
+                                ? t('proxy.config.zai.auto_claim.on_desc', { time: autoClaim.time })
+                                : t('proxy.config.zai.auto_claim.off_desc')}
+                        </div>
+                    </div>
+                    <HelpTooltip text={t('proxy.config.zai.auto_claim.tooltip')} iconSize={12} />
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                    <input
+                        type="time"
+                        value={autoClaim.time}
+                        disabled={!autoClaim.enabled}
+                        onChange={(e) => updateAutoClaim({ time: e.target.value || '00:00' })}
+                        aria-label={t('proxy.config.zai.auto_claim.time')}
+                        className="input input-xs input-bordered font-mono tabular-nums disabled:opacity-40"
+                    />
+                    <button
+                        type="button"
+                        role="switch"
+                        aria-checked={autoClaim.enabled}
+                        title={
+                            autoClaim.enabled
+                                ? t('proxy.config.zai.auto_claim.enabled')
+                                : t('proxy.config.zai.auto_claim.disabled')
+                        }
+                        onClick={() => updateAutoClaim({ enabled: !autoClaim.enabled })}
+                        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors cursor-pointer ${
+                            autoClaim.enabled ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-base-300'
+                        }`}
+                    >
+                        <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                                autoClaim.enabled ? 'translate-x-[18px]' : 'translate-x-0.5'
+                            }`}
+                        />
                     </button>
                 </div>
             </div>

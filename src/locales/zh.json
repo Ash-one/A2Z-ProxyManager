@@ -840,6 +840,15 @@
         "api_key_tooltip": "用于调用 z.ai 上游的 API Key（本地存储）。启用 z.ai 或 MCP 功能前必须配置。",
         "api_key_placeholder": "在此粘贴 z.ai API Key",
         "warning": "提示：该 Key 将保存在本机应用数据目录中。",
+        "auto_claim": {
+          "title": "每日自动领取礼包",
+          "tooltip": "每天在设定时间（本地时区）自动为全部启用的订阅账号探测并领取可领活动套餐；领取时间可改，改动即时生效。领取前会先比对已生效套餐，已领取的不会重复消耗验证码。",
+          "time": "领取时间",
+          "on_desc": "已开启：每天 {{time}}（本地时间）自动领取",
+          "off_desc": "已关闭：不会自动领取活动礼包",
+          "enabled": "关闭每日自动领取",
+          "disabled": "开启每日自动领取"
+        },
         "keys": {
           "title": "API Key 池",
           "title_tooltip": "配置多个 z.ai / bigmodel API Key 组成轮询池：每个可用 Key 占用一个池化槽位；401/403 标记失效并跳过，402 标记耗尽，429 按 Retry-After 限速，5xx 短冷却。",
@@ -899,6 +908,7 @@
           "claim_already": "该套餐今日已经领取过",
           "claim_exhausted": "今日领取名额已用完{{nextAt}}",
           "claim_captcha_failed": "验证码校验失败，请重试",
+          "claim_captcha_retry": "验证码被拒，正在换新鲜验证码重试…",
           "claim_need_captcha": "领取前需先完成验证码校验",
           "claim_failed": "套餐领取失败",
           "pool_moved_hint": "Key 池管理已移至「ZCode 账号」页",

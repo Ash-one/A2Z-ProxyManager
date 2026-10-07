@@ -1,6 +1,7 @@
 // proxy 模块 - API 反代服务
 
 // 现有模块 (保留)
+pub mod auto_claim; // zcode 每日定时领取活动套餐调度器
 pub mod config;
 pub mod project_resolver;
 pub mod security;

@@ -448,6 +448,34 @@ pub struct ZaiKeyEntry {
     pub device_profile: serde_json::Value,
 }
 
+/// zcode：定时领取活动套餐配置（调度器 proxy/auto_claim.rs；每轮热读取，改配置免重启）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutoClaimConfig {
+    /// 是否启用每日定时领取（缺省启用）。
+    #[serde(default = "default_auto_claim_enabled")]
+    pub enabled: bool,
+    /// 每日触发时点，本地时区 HH:MM（24 小时制；非法值运行时回退 00:00）。
+    #[serde(default = "default_auto_claim_time")]
+    pub time: String,
+}
+
+impl Default for AutoClaimConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_auto_claim_enabled(),
+            time: default_auto_claim_time(),
+        }
+    }
+}
+
+fn default_auto_claim_enabled() -> bool {
+    true
+}
+
+fn default_auto_claim_time() -> String {
+    "00:00".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ZaiConfig {
     #[serde(default)]
@@ -468,6 +496,9 @@ pub struct ZaiConfig {
     pub models: ZaiModelDefaults,
     #[serde(default)]
     pub mcp: ZaiMcpConfig,
+    /// zcode：每日定时领取（默认本地 00:00 触发；time 为 HH:MM，可调）。
+    #[serde(default)]
+    pub auto_claim: AutoClaimConfig,
 }
 
 impl Default for ZaiConfig {
@@ -480,6 +511,7 @@ impl Default for ZaiConfig {
             model_mapping: HashMap::new(),
             models: ZaiModelDefaults::default(),
             mcp: ZaiMcpConfig::default(),
+            auto_claim: AutoClaimConfig::default(),
         }
     }
 }

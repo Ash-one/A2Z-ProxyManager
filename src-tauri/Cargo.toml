@@ -74,6 +74,7 @@ sha2 = "0.10"
 toml = "0.8"
 toml_edit = "0.22"
 tauri-plugin-window-state = "2"
+tauri-plugin-notification = "2"     # 系统级通知（zcode 定时领取结果播报）
 parking_lot = "0.12.5"
 tokio-util = "0.7.18"
 aes-gcm = "0.10.3"

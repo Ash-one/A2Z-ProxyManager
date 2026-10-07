@@ -92,13 +92,40 @@ pub struct ZcodeCaptchaCommandConfig {
     pub app_version: String,
 }
 
+/// 最近一次 client/configs 动态验证码配置缓存（Node 求解器与前端过码组件共用；
+/// 上游可能轮换 sceneId/prefix/region，动态值优先，未拉取过时回退协议默认值）。
+static DYNAMIC_CAPTCHA_CONFIG: OnceLock<std::sync::RwLock<Option<CaptchaConfig>>> = OnceLock::new();
+
+fn cache_dynamic_captcha_config(cfg: &CaptchaConfig) {
+    let lock = DYNAMIC_CAPTCHA_CONFIG.get_or_init(|| std::sync::RwLock::new(None));
+    if let Ok(mut guard) = lock.write() {
+        *guard = Some(cfg.clone());
+    }
+}
+
+/// Node 求解器入参配置：动态缓存优先，缺失回退协议默认（11xygtvd / cn / no8xfe）。
+pub fn current_captcha_config() -> CaptchaConfig {
+    if let Some(lock) = DYNAMIC_CAPTCHA_CONFIG.get() {
+        if let Ok(guard) = lock.read() {
+            if let Some(cfg) = guard.as_ref() {
+                return cfg.clone();
+            }
+        }
+    }
+    captcha_defaults()
+}
+
 /// 拉取验证码命令配置：client/configs 动态值优先，拉取失败回退默认（不阻塞过码）。
 pub async fn captcha_command_config(
     upstream_proxy: &UpstreamProxyConfig,
     request_timeout: u64,
 ) -> Result<ZcodeCaptchaCommandConfig, String> {
     let cfg = match fetch_client_configs(upstream_proxy, request_timeout).await {
-        Ok(v) => extract_captcha_config(&v),
+        Ok(v) => {
+            let cfg = extract_captcha_config(&v);
+            cache_dynamic_captcha_config(&cfg);
+            cfg
+        }
         Err(_) => captcha_defaults(),
     };
     Ok(ZcodeCaptchaCommandConfig {
@@ -509,6 +536,20 @@ impl ZcodeCaptchaStore {
 /// 全局 Node 求解器锁（保证同时至多一个 Node 进程求解，避免并发冲突）
 static NODE_SOLVER_MUTEX: OnceLock<tokio::sync::Mutex<()>> = OnceLock::new();
 
+/// node 可执行解析候选：PATH 优先，其后常见用户级/包管理器安装位
+/// （Finder 启动的应用进程 PATH 仅 /usr/bin:/bin:/usr/sbin:/sbin，裸 "node" 必然失败）。
+fn node_command_candidates() -> Vec<std::path::PathBuf> {
+    let mut candidates = vec![std::path::PathBuf::from("node")];
+    if let Ok(home) = std::env::var("HOME") {
+        let home = std::path::PathBuf::from(home);
+        candidates.push(home.join(".local/bin/node"));
+        candidates.push(home.join(".hermes/node/bin/node"));
+    }
+    candidates.push(std::path::PathBuf::from("/opt/homebrew/bin/node"));
+    candidates.push(std::path::PathBuf::from("/usr/local/bin/node"));
+    candidates
+}
+
 /// 在后台直接启动本地 Node 求解器（Node + happy-dom），生成验证码并存入全局 CaptchaStore。
 /// 专为 Headless / CLI / curl / API 服务模式设计，500ms 快速生成，脱离前端 WebView。
 pub async fn solve_captcha_via_node(account_id: &str, key: &str) -> Option<CaptchaParam> {
@@ -521,13 +562,19 @@ pub async fn solve_captcha_via_node(account_id: &str, key: &str) -> Option<Captc
         return Some(p);
     }
 
-    let solver_candidates = [
+    // 候选顺序：编译期仓库路径优先（Finder/open 启动时 cwd=/ ，相对路径失效；
+    // 同时保证 dev 构建命中本仓库维护的求解器而非旧副本），其后为相对路径与历史副本。
+    let mut solver_candidates = vec![
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../captcha_node/solver.js"),
         std::path::PathBuf::from("captcha_node/solver.js"),
         std::path::PathBuf::from("../captcha_node/solver.js"),
-        std::path::PathBuf::from(
-            "/Users/guanxuzeng/LocalDocuments/GitLocalStore/zcode2api/captcha_node/solver.js",
-        ),
     ];
+    if let Ok(home) = std::env::var("HOME") {
+        solver_candidates.push(
+            std::path::PathBuf::from(home)
+                .join("LocalDocuments/GitLocalStore/zcode2api/captcha_node/solver.js"),
+        );
+    }
 
     let mut solver_file: Option<std::path::PathBuf> = None;
     for p in &solver_candidates {
@@ -559,23 +606,46 @@ pub async fn solve_captcha_via_node(account_id: &str, key: &str) -> Option<Captc
     };
     let solver_dir = solver_path.parent().unwrap_or(std::path::Path::new("."));
 
+    // 动态验证码配置：跟随 client/configs（上游可能轮换 sceneId/prefix/region），
+    // 未拉取过时回退协议默认值；region 同时作为 CaptchaParam 的附带区域。
+    let captcha_cfg = current_captcha_config();
+
     tracing::info!(
-        "[zcode solver] Spawning Node captcha solver at {:?}",
-        solver_path
+        "[zcode solver] Spawning Node captcha solver at {:?} (scene={} region={} prefix={})",
+        solver_path,
+        captcha_cfg.scene_id,
+        captcha_cfg.region,
+        captcha_cfg.prefix
     );
 
     for attempt in 1..=3 {
-        let mut cmd = tokio::process::Command::new("node");
-        cmd.arg(&solver_path)
-            .arg("11xygtvd")
-            .arg("cn")
-            .arg("no8xfe")
-            .current_dir(solver_dir)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null());
+        // node 可执行解析：Finder 启动的应用进程 PATH 极简（/usr/bin:/bin:...），
+        // "node" 解析失败时逐个回退常见安装位（首次 spawn 成功即用）。
+        let node_candidates = node_command_candidates();
+        let mut child = None;
+        for node_bin in &node_candidates {
+            let mut cmd = tokio::process::Command::new(node_bin);
+            cmd.arg(&solver_path)
+                .arg(&captcha_cfg.scene_id)
+                .arg(&captcha_cfg.region)
+                .arg(&captcha_cfg.prefix)
+                .current_dir(solver_dir)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null());
+            match cmd.spawn() {
+                Ok(c) => {
+                    child = Some(c);
+                    break;
+                }
+                Err(_) => continue,
+            }
+        }
 
-        let Ok(child) = cmd.spawn() else {
-            tracing::warn!("[zcode solver] Failed to spawn node process");
+        let Some(child) = child else {
+            tracing::warn!(
+                "[zcode solver] Failed to spawn node process (tried {} candidates)",
+                node_candidates.len()
+            );
             return None;
         };
 
@@ -606,11 +676,11 @@ pub async fn solve_captcha_via_node(account_id: &str, key: &str) -> Option<Captc
                         ZcodeCaptchaStore::global().store(
                             &captcha_key,
                             p.to_string(),
-                            "cn".to_string(),
+                            captcha_cfg.region.clone(),
                         );
                         return Some(CaptchaParam {
                             param: p.to_string(),
-                            region: "cn".to_string(),
+                            region: captcha_cfg.region.clone(),
                             issued_at_ms: ZcodeCaptchaStore::now_ms(),
                         });
                     }
@@ -900,6 +970,19 @@ pub fn challenge_header_present(header_names: &[String]) -> bool {
         let h = h.to_ascii_lowercase();
         h.contains("captcha") || h.contains("aliyun")
     })
+}
+
+/// claim 失败归一：上游把验证码挑战包在 4xx 里（400 + body code=3007；
+/// 或 403 + captcha 头）。此前裸透传 HTTP 状态码导致 code=3007 的换码重试
+/// 分支（前端与调度器）永不触发。命中归一为业务码 3007，其余返回 None。
+fn normalize_claim_failure(status: u16, body: &str, header_names: &[String]) -> Option<i64> {
+    if envelope_code(body) == Some(PLAN_CAPTCHA_EXPIRED_CODE)
+        || (status == 403 && challenge_header_present(header_names))
+    {
+        Some(PLAN_CAPTCHA_EXPIRED_CODE)
+    } else {
+        None
+    }
 }
 
 /// body 业务码提取（`{code: 3007, ...}` 信封；非 JSON/缺 code → None）。
@@ -1311,7 +1394,7 @@ pub async fn claim_plan(
         headers.push(("X-Platform".to_string(), profile.platform_arch()));
         headers.push(("X-ZCode-App-Version".to_string(), APP_VERSION.to_string()));
         headers.push(("X-Device-Mid".to_string(), profile.device_mid.clone()));
-        let (status, body, _) = send_json(
+        let (status, body, resp_headers) = send_json(
             &client,
             reqwest::Method::POST,
             &url,
@@ -1329,6 +1412,15 @@ pub async fn claim_plan(
             });
         }
         if status != 200 {
+            if let Some(code) = normalize_claim_failure(status, &body, &resp_headers) {
+                return Ok(ZcodeClaimResult {
+                    ok: false,
+                    code,
+                    message: "captcha verification failed".to_string(),
+                    next_at_ms: None,
+                    data: None,
+                });
+            }
             return Ok(ZcodeClaimResult {
                 ok: false,
                 code: status as i64,
@@ -1399,6 +1491,28 @@ mod tests {
         assert_eq!(out.prefix, "no8xfe");
         assert_eq!(out.region, "cn");
         assert_eq!(out.scene_id, "11xygtvd");
+    }
+
+    #[test]
+    fn claim_captcha_challenge_wrapped_in_4xx_is_normalized() {
+        // 400 + body code=3007（实测形态）→ 归一为业务码 3007
+        assert_eq!(
+            normalize_claim_failure(400, r#"{"code":3007,"message":"captcha"}"#, &[]),
+            Some(PLAN_CAPTCHA_EXPIRED_CODE)
+        );
+        // 403 + captcha 挑战头（另一实测形态）→ 归一为 3007
+        assert_eq!(
+            normalize_claim_failure(
+                403,
+                "{}",
+                &["X-Captcha-Token".to_string(), "Content-Type".to_string()]
+            ),
+            Some(PLAN_CAPTCHA_EXPIRED_CODE)
+        );
+        // 其余 4xx/5xx 与其他业务码不归一（保留 HTTP 语义）
+        assert_eq!(normalize_claim_failure(400, r#"{"code":1001}"#, &[]), None);
+        assert_eq!(normalize_claim_failure(500, "{}", &[]), None);
+        assert_eq!(normalize_claim_failure(403, "{}", &[]), None);
     }
 
     #[test]

@@ -849,6 +849,15 @@
         "api_key_tooltip": "API key used to authenticate requests to z.ai. Stored locally and required for z.ai and MCP features.",
         "api_key_placeholder": "Paste your z.ai API key here",
         "warning": "Note: This key is stored locally in the app data directory.",
+        "auto_claim": {
+          "title": "Daily Auto Claim",
+          "tooltip": "Automatically probes and claims available gift plans for all enabled subscription accounts every day at the set local time. The time is adjustable and takes effect immediately. Already-active plans are skipped so no captcha is wasted.",
+          "time": "Claim time",
+          "on_desc": "On: auto-claims daily at {{time}} (local time)",
+          "off_desc": "Off: gift plans are not claimed automatically",
+          "enabled": "Disable daily auto claim",
+          "disabled": "Enable daily auto claim"
+        },
         "keys": {
           "title": "API Key Pool",
           "title_tooltip": "Configure multiple z.ai / bigmodel API keys as a round-robin pool: each available key occupies one pooled slot; 401/403 marks the key invalid and skips it, 402 marks it exhausted, 429 is rate-limited per Retry-After, 5xx triggers a short cooldown.",
@@ -908,6 +917,7 @@
           "claim_already": "This package has already been claimed today",
           "claim_exhausted": "Daily quota exhausted{{nextAt}}",
           "claim_captcha_failed": "Captcha verification failed, please retry",
+          "claim_captcha_retry": "Captcha rejected — retrying with a fresh one…",
           "claim_need_captcha": "Captcha verification required before claiming",
           "claim_failed": "Failed to claim package",
           "pool_moved_hint": "Key pool management has moved to the ZCode Accounts page",

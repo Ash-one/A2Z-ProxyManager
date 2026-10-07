@@ -165,6 +165,8 @@ export interface ZaiConfig {
     model_mapping?: Record<string, string>;
     models: ZaiModelDefaults;
     mcp: ZaiMcpConfig;
+    /** zcode：每日定时领取活动套餐（后端调度器热读取；缺省启用、本地 00:00 触发） */
+    auto_claim?: { enabled: boolean; time: string };
 }
 
 // [zcode T1/T3] Key 池运行状态（掩码展示，与后端 ZaiKeyStatusView 对齐）

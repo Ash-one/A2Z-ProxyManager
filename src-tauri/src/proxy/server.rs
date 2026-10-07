@@ -583,6 +583,14 @@ impl AxumServer {
             });
         }
 
+        // [zcode auto-claim] 每日定时领取调度：随网关启动常驻，每轮热读取
+        // proxy.zai.auto_claim（enabled/time），默认本地 00:00 触发。
+        crate::proxy::auto_claim::spawn_scheduler(
+            zai_state.clone(),
+            proxy_state.clone(),
+            request_timeout,
+        );
+
         let state = AppState {
             token_manager: token_manager.clone(),
             custom_mapping: custom_mapping_state.clone(),
