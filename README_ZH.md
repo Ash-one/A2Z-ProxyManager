@@ -1,5 +1,5 @@
 # A2Z-ProxyManager 🚀
-> 双引擎 AI 账号管理与协议代理系统 — Antigravity (Google) + Z.AI / ZCode (GLM) (v4.8.9)
+> 双引擎 AI 账号管理与协议代理系统 — Antigravity (Google) + Z.AI / ZCode (GLM) (v4.9.0)
 
 <div align="center">
   <img src="public/icon.png" width="100" height="100" alt="A2Z-ProxyManager Logo">
@@ -11,7 +11,7 @@
       <img src="https://img.shields.io/github/v/release/Ash-one/A2Z-ProxyManager?color=blue&style=flat-square" alt="GitHub release">
     </a>
     <a href="https://github.com/Ash-one/A2Z-ProxyManager">
-      <img src="https://img.shields.io/badge/Version-4.8.9-blue?style=flat-square" alt="Version">
+      <img src="https://img.shields.io/badge/Version-4.9.0-blue?style=flat-square" alt="Version">
     </a>
     <img src="https://img.shields.io/badge/Frontend-React-61DAFB?style=flat-square" alt="React">
     <img src="https://img.shields.io/badge/License-CC--BY--NC--SA--4.0-lightgrey?style=flat-square" alt="License">
@@ -479,7 +479,7 @@ response = client.chat.completions.create(
 
 ## 📝 更新日志
 
-> 最新版本 **v4.8.9**（2026-10-03）：本 Fork 基于上游 v4.8.9 构建，新增 Z.AI / ZCode 引擎 —— ZCode Coding Plan 订阅账号（OAuth JWT 池）与 z.ai API Key 池、无浏览器 Node 验证码求解器与双槽预热缓冲池、3012/405 反风控合规请求整形、`glm-*` 模型全入站协议确定性路由、独立 ZCode 账号管理页面，并将更新端点切换至本仓库 Release。
+> 最新版本 **v4.9.0**（2026-10-07）：本 Fork 基于上游 v4.8.9 构建，新增 Z.AI / ZCode 引擎 —— ZCode Coding Plan 订阅账号（OAuth JWT 池）与 z.ai API Key 池、无浏览器 Node 验证码求解器与双槽预热缓冲池、3012/405 反风控合规请求整形、`glm-*` 模型全入站协议确定性路由、独立 ZCode 账号管理页面，并将更新端点切换至本仓库 Release。**v4.9.0 新增**：ZCode Plan 每日定时领取活动套餐（默认零点、时点可调、错过补跑），balance 短路 + 缓冲池验证码自动领取 + 系统级通知播报，并修复 3007 验证码挑战被裸透传为 HTTP 400 导致重试失效的问题、验证码策略改为跟随上游动态配置。
 
 👉 **[查看完整更新日志 CHANGELOG.md →](CHANGELOG.md)**
 

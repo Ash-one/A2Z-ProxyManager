@@ -1,5 +1,5 @@
 # A2Z-ProxyManager 🚀
-> Dual-Engine AI Account Management & Protocol Proxy — Antigravity (Google) + Z.AI / ZCode (GLM) (v4.8.9)
+> Dual-Engine AI Account Management & Protocol Proxy — Antigravity (Google) + Z.AI / ZCode (GLM) (v4.9.0)
 
 <div align="center">
   <img src="public/icon.png" width="100" height="100" alt="A2Z-ProxyManager Logo">
@@ -11,7 +11,7 @@
       <img src="https://img.shields.io/github/v/release/Ash-one/A2Z-ProxyManager?color=blue&style=flat-square" alt="GitHub release">
     </a>
     <a href="https://github.com/Ash-one/A2Z-ProxyManager">
-      <img src="https://img.shields.io/badge/Version-4.8.9-blue?style=flat-square" alt="Version">
+      <img src="https://img.shields.io/badge/Version-4.9.0-blue?style=flat-square" alt="Version">
     </a>
     <img src="https://img.shields.io/badge/Tauri-v2-orange?style=flat-square" alt="Tauri">
     <img src="https://img.shields.io/badge/Backend-Rust-red?style=flat-square" alt="Rust">
@@ -472,7 +472,7 @@ In clients that support OpenAI protocol (e.g., Cherry Studio), you can configure
 
 ## 📝 Changelog
 
-> Latest version **v4.8.9** (2026-10-03): This fork is based on upstream v4.8.9 and adds the Z.AI / ZCode engine — ZCode Coding Plan subscription accounts (OAuth JWT pool) and z.ai API key pools, a headless Node captcha solver with dual-slot pre-warmed buffer pools, 3012/405 WAF-compliant request shaping, deterministic `glm-*` routing across all inbound protocols, a dedicated ZCode accounts management page, and update endpoints repointed at this fork's releases.
+> Latest version **v4.9.0** (2026-10-07): This fork is based on upstream v4.8.9 and adds the Z.AI / ZCode engine — ZCode Coding Plan subscription accounts (OAuth JWT pool) and z.ai API key pools, a headless Node captcha solver with dual-slot pre-warmed buffer pools, 3012/405 WAF-compliant request shaping, deterministic `glm-*` routing across all inbound protocols, a dedicated ZCode accounts management page, and update endpoints repointed at this fork's releases. **New in v4.9.0**: daily scheduled gift-plan claiming for ZCode Plan (default midnight, adjustable time, catch-up on missed slots) with balance short-circuiting, buffer-pool captcha automation and native system notifications, plus a fix for captcha challenges (3007) being surfaced as bare HTTP 400 which silently disabled all retry branches — the captcha strategy now follows the upstream dynamic config.
 
 👉 **[View Full Changelog → CHANGELOG_EN.md](CHANGELOG_EN.md)**
 

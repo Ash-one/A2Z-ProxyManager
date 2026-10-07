@@ -3,6 +3,15 @@
 > 完整版本历史记录。返回项目主页请查看 [README_ZH.md](README_ZH.md) | [English Changelog](CHANGELOG_EN.md)。
 
 *   **版本演进**:
+    *   **v4.9.0 (2026-10-07)**:
+        -   **[ZCode Plan 每日定时领取活动套餐] 内置零点调度器、缓冲池验证码自动领取与系统级通知播报 (fork 特性)**:
+            -   **每日定时调度器**: 网关内置 `proxy.zai.auto_claim` 调度循环（默认每日本地 00:00；ZCode 账号页提供开关与 HH:MM 时点选择，改动热生效免重启），为全部启用 JWT 订阅账号自动执行 billing/preview 探测与 billing/claim 领取；机器睡眠错过时点后唤醒自动补跑，账号间 3 秒隔离、preview 未上线时最多 5×60 秒探测，克制 billing 端点 WAF 风控压力；进程内单例守卫保证代理服务重启不重复拉起。
+            -   **领取前置短路与人道重试**: 领取前先拉取 billing/balance 已生效套餐集合精准去重（实测 preview 对已领账号不再展示活动），已领日不再消耗验证码；验证码复用 Plan 通道缓冲池新鲜参数（90 秒窗）并无头 Node 求解器补位，遭遇 3007 时精准作废单枚换码重试（最多 3 次提交），全程经 `~/.antigravity_tools/logs/auto_claim.log` 独立审计日志留痕（应用文件日志仅收 ERROR 级，此前调度轮次磁盘零痕迹不可查）。
+            -   **系统级通知播报**: 引入 `tauri-plugin-notification`，领取成功 / 失败（含名额用完、验证码多次被拒、流程错误）/ 今日已生效三类结果按账号推送系统通知；无头模式无 AppHandle 时自动降级仅记录日志，符合 Headless 对齐纪律。
+            -   **3007 挑战归一修复**: `claim_plan` 此前将上游「400 + body code=3007（或 403 + captcha 响应头）」裸透传为 HTTP 状态码，导致前端与调度器所有依赖 `code===3007` 的换码重试分支永不触发、用户只见裸 400 报错；现经 `normalize_claim_failure` 归一为业务码 3007，前端同步实现验证码 90 秒新鲜度校验（杜绝复用过期参数）与 3007 自动换码重试一次。
+            -   **验证码策略动态化与启动健壮性**: Node 求解器改为跟随 client/configs 动态 `sceneId/prefix/region`（缓存于 `zcode_captcha_config`，未拉取时回退协议默认值），不再写死场景参数；solver.js 经 `CARGO_MANIFEST_DIR` 编译期路径解析（不再依赖旧仓库副本），node 二进制增加 `~/.local/bin`、`/opt/homebrew/bin` 等安装位回退链，Finder/登录项启动（极简 PATH）亦可正常求解。
+        -   **[独立 CLI 领取脚本] 新增 scripts/auto_claim_daily.py 单账号一次性领取脚本**: 走网关 HTTP 端点（preview → 求解 → claim → 配额复核），供 Headless 服务器与外部调度（cron 等）场景使用，与端内调度器互不冲突。
+
     *   **v4.8.9 (2026-10-01)**:
         -   **[上游长思考静默期保活与连接稳定性根治] 穿透底层 hyper 注入 HTTP/2 PING 帧，统一 base_client_builder 杜绝代理 L7 空闲截断与流式腰斩 (PR #3571, Fixes #2195, Fixes #1796, Fixes #2013, Thanks to @EricZhou05)**:
             -   **底层 Hyper HTTP/2 PING 保活帧穿透注入**: 针对深度思考、长代码生成、大型脚本编写或制定复杂工作计划时上游服务长达 10~15 秒数据生成静默期导致的流式中断，直接穿透 `rquest` 底层 `hyper` 协议栈配置 `keep_alive_interval(Duration::from_secs(3))`、`keep_alive_timeout(Duration::from_secs(10))` 与 `keep_alive_while_idle(true)`。通过向连接周期性注入标准 HTTP/2 PING 帧并由服务端 ACK，持续重置本地代理（如 Clash、软路由、网络代理）的应用层（L7）空闲读超时计时器，彻底根除 `error reading a body from connection`、`RST_STREAM` 报错及 Token 浪费。
